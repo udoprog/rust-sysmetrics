@@ -1,0 +1,27 @@
+[package]
+name = "sysmetrics"
+version = "0.1.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "Apache 2.0"
+
+[dependencies]
+getopts = "*"
+histogram = "*"
+log = "*"
+num = "*"
+rustc-serialize = "0.3.19"
+time = "*"
+toml = "0.1"
+
+[dependencies.hyper]
+version = "^0.9.6"
+optional = true
+
+[dependencies.notify]
+version = "*"
+optional = true
+
+[features]
+default = ["http", "watch"]
+http = ["hyper"]
+watch = ["notify"]

@@ -1,0 +1,2 @@
+type = "poller"
+target = "http://example.com"
