@@ -1,2 +1,6 @@
+!.gitignore
 .*.un~
 /target/
+/Cargo.lock
+/.idea
+*.iml

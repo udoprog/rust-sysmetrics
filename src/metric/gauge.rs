@@ -1,25 +1,31 @@
 use std::f64;
+use std::mem;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct Gauge {
-    pub value: f64
+    value: AtomicU64
 }
 
 impl Gauge {
     pub fn new() -> Gauge {
-        Gauge { value: f64::NAN }
+        let bits = unsafe { mem::transmute(f64::NAN) };
+        Gauge { value: AtomicU64::new(bits) }
     }
 
-    fn clear(&mut self) {
-        self.value = f64::NAN;
+    pub fn clear(&mut self) {
+        let bits = unsafe { mem::transmute(f64::NAN) };
+        self.value.store(bits, Ordering::Relaxed);
     }
 
-    fn set(&mut self, value: f64) {
-        self.value = value;
+    pub fn set(&mut self, value: f64) {
+        let bits = unsafe { mem::transmute(value) };
+        self.value.store(bits, Ordering::Relaxed);
     }
 
-    fn snapshot(self) -> f64 {
-        self.value
+    pub fn snapshot(&self) -> f64 {
+        let bits = self.value.load(Ordering::Relaxed);
+        unsafe { mem::transmute(bits) }
     }
 }
 

@@ -1,37 +1,45 @@
-#![feature(stmt_expr_attributes)]
-
-#[cfg(features = "watch")]
-extern crate notify;
-extern crate rustc_serialize;
-extern crate sysmetrics;
+extern crate sysmon;
 extern crate toml;
 extern crate getopts;
-
+extern crate futures;
+extern crate futures_cpupool;
+extern crate tokio_timer;
 #[macro_use]
 extern crate log;
+#[cfg(features = "watch")]
+extern crate notify;
 
+use futures_cpupool::CpuPool;
+use getopts::Options;
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::io::Read;
+use std::rc::Rc;
 use std::result::Result;
-use std::env;
-use getopts::Options;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use tokio_timer::Timer;
 
-use sysmetrics::plugin;
-use sysmetrics::logger;
+use sysmon::logger;
+use sysmon::plugin;
+use sysmon::poller::Poller;
+use sysmon::scheduler::*;
 
 #[derive(Debug)]
-enum ConfigError<'a> {
+enum ConfigError {
     IO(std::io::Error),
-    ParseError(&'a str),
-    Plugin(plugin::Error),
-    MissingField(&'a str, &'a str),
+    ParseError(String),
+    PluginSetup(plugin::SetupError),
+    BadKey(String),
     MissingPlugin(String)
 }
 
-type NewPlugin = fn(toml::Table) -> Result<Box<plugin::Plugin>, plugin::Error>;
-
-fn load_plugin<'a>(path: &'a str, plugins: &HashMap<String, NewPlugin>) -> Result<Box<plugin::Plugin>, ConfigError<'a>> {
+fn load_config(
+    path: &String, plugins: &HashMap<String, plugin::Entry>
+) -> Result<Vec<Box<plugin::Plugin>>, ConfigError>
+{
     let mut file = try!(fs::File::open(path).map_err(ConfigError::IO));
 
     let mut content = String::new();
@@ -39,23 +47,25 @@ fn load_plugin<'a>(path: &'a str, plugins: &HashMap<String, NewPlugin>) -> Resul
 
     let mut parser = toml::Parser::new(&mut content);
 
-    let value = try!(
+    let config = try!(
         parser.parse()
-        .ok_or(ConfigError::ParseError(path)));
+            .ok_or(ConfigError::ParseError(path.clone())));
 
-    let plugin = {
-        let plugin_type = try!(
-            value.get("type")
-            .and_then(toml::Value::as_str)
-            .ok_or(ConfigError::MissingField(path, "type")));
+    let mut instances = Vec::new();
 
-        try!(plugins.get(plugin_type).ok_or(ConfigError::MissingPlugin(plugin_type.to_owned())))
-    };
+    for (key, section) in &config {
+        let mut parts = key.split("/");
 
-    plugin(value).map_err(ConfigError::Plugin)
+        let plugin_type: &str = try!(parts.next().ok_or(ConfigError::BadKey(key.to_owned())));
+        let entry: &plugin::Entry = try!(plugins.get(plugin_type).ok_or(ConfigError::MissingPlugin(plugin_type.to_owned())));
+        let instance: Box<plugin::Plugin> = try!(entry(key.clone(), section.clone()).map_err(ConfigError::PluginSetup));
+        instances.push(instance)
+    }
+
+    Ok(instances)
 }
 
-fn print_usage(program: &str, plugins: &HashMap<String, NewPlugin>, opts: Options) {
+fn print_usage(program: &str, plugins: &HashMap<String, plugin::Entry>, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     println!("{}", opts.usage(&brief));
 
@@ -66,24 +76,12 @@ fn print_usage(program: &str, plugins: &HashMap<String, NewPlugin>, opts: Option
     }
 }
 
-fn load_plugins() -> HashMap<String, NewPlugin> {
-    let mut m: HashMap<String, NewPlugin> = HashMap::new();
-    m.insert("disk".to_owned(), sysmetrics::plugins::disk::entry);
-    m.insert("cpu".to_owned(), sysmetrics::plugins::cpu::entry);
-    m.insert("load".to_owned(), sysmetrics::plugins::load::entry);
-
-    #[cfg(feature = "http")]
-    m.insert("http_poller".to_owned(), sysmetrics::plugins::http_poller::entry);
-
-    m
-}
-
 fn main() {
     let mut opts = Options::new();
 
     opts.optflag("h", "help", "print this help");
     opts.optflag("", "debug", "enable debug logging");
-    opts.optmulti("", "confdir", "load configuration files from the given directories", "<dir>");
+    opts.optmulti("", "config", "load configuration file", "<file>");
 
     #[cfg(feature = "watch")]
     opts.optflag("w", "watch", "enable watching of the configuration directory");
@@ -91,7 +89,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 
-    let plugins: HashMap<String, NewPlugin> = load_plugins();
+    let plugins: HashMap<String, plugin::Entry> = sysmon::plugins::load_plugins();
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
@@ -118,14 +116,38 @@ fn main() {
             println!("Failed to initialize log: {}", f.to_string());
             return;
         },
-        _ => {  }
+        _ => {}
     }
 
-    let plugin = load_plugin("config/poller.toml", &plugins);
+    let configs = matches.opt_strs("config");
+    let mut loaded: Vec<Box<plugin::Plugin>> = Vec::new();
 
-    let confdirs = matches.opt_strs("confdir");
+    for config in configs {
+        info!("loading: {}", config);
+        loaded.extend(load_config(&config, &plugins).unwrap());
+    }
 
-    info!("Directories: {:?}", directories);
+    let pool = CpuPool::new(4);
 
-    println!("{:?}", plugin);
+    let timer = Arc::new(Timer::default());
+
+    let framework = plugin::PluginFramework {
+        cpupool: Rc::new(pool)
+    };
+
+    let instances: Vec<Box<plugin::PluginInstance>> = loaded.into_iter().map(|plugin| {
+        plugin.setup(&framework)
+    }).collect();
+
+    let poll_duration = Duration::new(5, 0);
+
+    let polling = schedule(timer, poll_duration, Poller::new(instances));
+
+    info!("Started!");
+
+    thread::sleep(Duration::from_millis(1000));
+
+    drop(polling);
+
+    info!("Shutting down!");
 }

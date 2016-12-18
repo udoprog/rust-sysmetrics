@@ -1,29 +1,52 @@
+use ::plugin::*;
+use futures::*;
 use toml;
 
-use ::plugin;
-
-#[derive(Debug, RustcDecodable)]
+#[derive(Deserialize, Debug)]
 struct PollerConfig {
     target: Option<String>
 }
 
 #[derive(Debug)]
-struct Poller {
+struct HttpPoller {
+    key: String,
     config: PollerConfig
 }
 
-impl Poller {
-    pub fn new(c: PollerConfig) -> Poller {
-        return Poller { config: c };
+impl HttpPoller {
+    pub fn new(key: String, c: PollerConfig) -> HttpPoller {
+        return HttpPoller {
+            key: key,
+            config: c
+        };
     }
 }
 
-impl plugin::Plugin for Poller {
+impl Plugin for HttpPoller {
+    fn key(&self) -> &str {
+        self.key.as_str()
+    }
+
+    fn setup(&self, _: &PluginFramework) -> Box<PluginInstance> {
+        Box::new(HttpPollerInstance::new())
+    }
 }
 
-pub fn entry(value: toml::Table) -> Result<Box<plugin::Plugin>, plugin::Error> {
-    let c: PollerConfig = try!(toml::decode(toml::Value::Table(value))
-        .ok_or(plugin::Error::DecodeError));
+#[derive(Debug)]
+struct HttpPollerInstance {
+}
 
-    Ok(Box::new(Poller::new(c)))
+impl HttpPollerInstance {
+    pub fn new() -> HttpPollerInstance {
+        return HttpPollerInstance {  };
+    }
+}
+
+impl PluginInstance for HttpPollerInstance {
+}
+
+pub fn entry(key: String, config: toml::Value) -> Result<Box<Plugin>, SetupError> {
+    let c: PollerConfig = try!(toml::decode(config).ok_or(SetupError::DecodeError));
+
+    Ok(Box::new(HttpPoller::new(key, c)))
 }

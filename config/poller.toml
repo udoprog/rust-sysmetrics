@@ -1,2 +1,3 @@
-type = "poller"
-target = "http://example.com"
+[cpu]
+
+[disk]

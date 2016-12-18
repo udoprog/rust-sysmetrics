@@ -1,20 +1,43 @@
+use ::plugin::*;
+use futures::*;
 use toml;
-
-use ::plugin;
 
 #[derive(Debug)]
 struct DiskPoller {
+    key: String
 }
 
 impl DiskPoller {
-    pub fn new() -> DiskPoller {
-        DiskPoller {}
+    pub fn new(key: String) -> DiskPoller {
+        DiskPoller {
+            key: key
+        }
     }
 }
 
-impl plugin::Plugin for DiskPoller {
+impl Plugin for DiskPoller {
+    fn key(&self) -> &str {
+        self.key.as_str()
+    }
+
+    fn setup(&self, _: &PluginFramework) -> Box<PluginInstance> {
+        Box::new(DiskInstance::new())
+    }
 }
 
-pub fn entry(_: toml::Table) -> Result<Box<plugin::Plugin>, plugin::Error> {
-    Ok(Box::new(DiskPoller::new()))
+#[derive(Debug)]
+struct DiskInstance {
+}
+
+impl DiskInstance {
+    pub fn new() -> DiskInstance {
+        DiskInstance {}
+    }
+}
+
+impl PluginInstance for DiskInstance {
+}
+
+pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>, SetupError> {
+    Ok(Box::new(DiskPoller::new(key)))
 }
