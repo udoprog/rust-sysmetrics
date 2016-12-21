@@ -9,6 +9,7 @@ extern crate log;
 #[cfg(features = "watch")]
 extern crate notify;
 
+use futures::*;
 use futures_cpupool::CpuPool;
 use getopts::Options;
 use std::collections::HashMap;
@@ -24,6 +25,7 @@ use tokio_timer::Timer;
 use sysmon::logger;
 use sysmon::plugin;
 use sysmon::poller::Poller;
+use sysmon::updater::Updater;
 use sysmon::scheduler::*;
 use sysmon::errors::*;
 
@@ -150,17 +152,20 @@ fn run() -> Result<()> {
         instances.push(plugin.setup(&framework)?);
     }
 
-    let poll_duration = Duration::new(5, 0);
+    let poll_duration = Duration::new(1, 0);
+    let update_duration = Duration::new(1, 0);
 
-    let polling = schedule(timer, poll_duration, Poller::new(instances));
+    let borrowed = Arc::new(instances);
+    let polling = schedule(timer.clone(), poll_duration, Poller::new(borrowed.clone()));
+    let updating = schedule(timer.clone(), update_duration, Updater::new(borrowed.clone()));
 
     info!("Started!");
 
-    thread::sleep(Duration::from_millis(1000));
-
-    drop(polling);
+    // thread::sleep(Duration::from_millis(10000));
 
     info!("Shutting down!");
+
+    future::join_all(vec![polling, updating]).wait();
 
     Ok(())
 }

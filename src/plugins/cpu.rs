@@ -1,6 +1,7 @@
 use ::metric::*;
 use ::plugin::*;
 use ::errors::*;
+use ::parsers::*;
 
 use futures::*;
 use futures_cpupool::*;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use toml;
+use std::time::Instant;
 
 #[derive(Debug)]
 struct Cpu {
@@ -37,10 +39,38 @@ impl Plugin for Cpu {
 }
 
 struct Metrics {
-    used_percentage_id: Arc<MetricId>,
-    used_percentage: Gauge,
-    free_percentage_id: Arc<MetricId>,
-    free_percentage: Gauge,
+    previous: Option<StatCpu>,
+    used_percentage: (Arc<MetricId>, Gauge),
+    free_percentage: (Arc<MetricId>, Gauge)
+}
+
+impl Metrics {
+    pub fn update(&mut self) -> Result<()> {
+        let file = File::open("/proc/stat")?;
+        let mut reader = BufReader::new(file);
+        let mut buffer = String::new();
+
+        reader.read_line(&mut buffer)?;
+
+        let next = parse_stat_cpu(buffer.as_bytes()).to_full_result()?;
+
+        self.previous = match self.previous {
+            None => {
+                Some(next)
+            }
+            Some(ref prev) => {
+                let total_diff = next.total() - prev.total();
+
+                if total_diff > 0 {
+                    self.used_percentage.1.set(((next.user - prev.user) as f64) / total_diff as f64);
+                }
+
+                Some(next)
+            }
+        };
+
+        Ok(())
+    }
 }
 
 struct CpuInstance {
@@ -60,32 +90,12 @@ impl CpuInstance {
         CpuInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
-                used_percentage_id: Arc::new(key("cpu-used-percentage")),
-                used_percentage: Gauge::new(),
-                free_percentage_id: Arc::new(key("cpu-free-percentage")),
-                free_percentage: Gauge::new(),
+                previous: None,
+                used_percentage: (Arc::new(key("cpu-used-percentage")), Gauge::new()),
+                free_percentage: (Arc::new(key("cpu-free-percentage")), Gauge::new())
             })),
             cpupool: cpupool
         }
-    }
-
-    fn update_inner(&mut self) -> Box<Fn() -> Result<()> + Send> {
-        let metrics = self.metrics.clone();
-
-        return Box::new(move || {
-            let file = File::open("/proc/stat")?;
-            let mut reader = BufReader::new(file);
-            let mut buffer = String::new();
-
-            reader.read_line(&mut buffer)?;
-
-            info!("TODO(PARSE): {:?}", buffer);
-
-            let mut metrics = metrics.lock()?;
-
-            metrics.used_percentage.set(42.0 as f64);
-            Ok(())
-        });
     }
 }
 
@@ -94,17 +104,23 @@ impl PluginInstance for CpuInstance {
         let ref mut m = self.metrics.lock()?;
 
         let results = vec![
-            Sample::new(m.free_percentage_id.clone(), m.free_percentage.snapshot()),
-            Sample::new(m.used_percentage_id.clone(), m.used_percentage.snapshot())
+            Sample::new(m.free_percentage.0.clone(), m.free_percentage.1.snapshot()),
+            Sample::new(m.used_percentage.0.clone(), m.used_percentage.1.snapshot())
         ];
 
         Ok(results)
     }
 
-    fn update(&mut self) -> BoxFuture<(), Error> {
-        let op = self.update_inner();
+    fn update(&self) -> BoxFuture<(), Error> {
+        let m = self.metrics.clone();
 
-        self.cpupool.spawn(future::lazy(move || future::result(op()))).boxed()
+        self.cpupool.spawn(future::lazy(move || {
+            let result: Result<()> = m.lock()
+                .map_err(Into::into)
+                .and_then(|mut locked| locked.update());
+
+            future::result(result)
+        })).boxed()
     }
 
     fn next_update(&self) -> Duration {

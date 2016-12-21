@@ -5,6 +5,8 @@
 extern crate log;
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate nom;
 
 extern crate histogram;
 extern crate num;
@@ -17,6 +19,7 @@ extern crate tokio_timer;
 #[macro_use]
 extern crate serde_derive;
 
+pub mod parsers;
 pub mod plugins;
 pub mod plugin;
 pub mod metric;
@@ -24,3 +27,4 @@ pub mod logger;
 pub mod scheduler;
 pub mod errors;
 pub mod poller;
+pub mod updater;

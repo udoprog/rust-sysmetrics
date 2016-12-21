@@ -35,7 +35,7 @@ pub trait PluginInstance: Debug {
     }
 
     /// Update the state of the plugin instance.
-    fn update(&mut self) -> BoxFuture<(), Error> {
+    fn update(&self) -> BoxFuture<(), Error> {
         future::ok(()).boxed()
     }
 

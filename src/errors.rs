@@ -3,6 +3,7 @@ use tokio_timer::TimerError;
 use std::io;
 use std::sync;
 use log;
+use nom;
 
 error_chain! {
     foreign_links {
@@ -37,6 +38,11 @@ error_chain! {
             display("missing plugin: {}", name)
         }
 
+        Nom(info: String) {
+            description("nom error")
+            display("nom error: {}", info)
+        }
+
         Poll {
         }
 
@@ -51,5 +57,18 @@ error_chain! {
 impl <T> From<sync::PoisonError<T>> for Error {
     fn from(err: sync::PoisonError<T>) -> Error {
         ErrorKind::Poison(err.to_string()).into()
+    }
+}
+
+impl From<nom::IError> for Error {
+    fn from(err: nom::IError) -> Error {
+        match err {
+            nom::IError::Error(err) => {
+                ErrorKind::Nom(err.to_string()).into()
+            },
+            nom::IError::Incomplete(_) => {
+                ErrorKind::Nom("input incomplete".to_owned()).into()
+            }
+        }
     }
 }
