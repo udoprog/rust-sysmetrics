@@ -1,9 +1,9 @@
 mod cpu;
 mod disk;
 mod load;
-
 #[cfg(feature = "http")]
 mod http_poller;
+mod debug;
 
 use ::plugin::*;
 use std::collections::HashMap;
@@ -18,5 +18,9 @@ pub fn load_plugins() -> PluginRegistry {
     #[cfg(feature = "http")]
     input.insert("http_poller".to_owned(), http_poller::input);
 
-    PluginRegistry::new(input)
+    let mut output: HashMap<String, OutputEntry> = HashMap::new();
+
+    output.insert("debug".to_owned(), debug::output);
+
+    PluginRegistry::new(input, output)
 }

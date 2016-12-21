@@ -1,7 +1,9 @@
 #![feature(proc_macro)]
 #![feature(integer_atomics)]
-#![recursion_limit = "1024"]
+// impl traits are awesome (for iterators)
 #![feature(conservative_impl_trait)]
+// error-chain macros recurse _a lot_
+#![recursion_limit = "1024"]
 
 #[macro_use]
 extern crate log;

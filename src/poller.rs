@@ -1,26 +1,28 @@
-use ::plugin;
-use ::scheduler::Runnable;
 use ::errors::*;
-use std::sync::Arc;
+use ::plugin::*;
+use ::scheduler::Runnable;
 use futures::*;
+use std::sync::Arc;
 
 pub struct Poller {
-    instances: Arc<Vec<Box<plugin::InputInstance>>>
+    input: Arc<Vec<Box<InputInstance>>>,
+    output: Arc<Vec<Box<OutputInstance>>>,
 }
 
 impl Poller {
-    pub fn new(instances: Arc<Vec<Box<plugin::InputInstance>>>) -> Poller {
-        Poller {instances: instances}
+    pub fn new(
+        input: Arc<Vec<Box<InputInstance>>>,
+        output: Arc<Vec<Box<OutputInstance>>>
+    ) -> Poller {
+        Poller {input: input, output: output}
     }
 }
 
 impl Runnable for Poller {
     fn run(&self) -> BoxFuture<(), Error> {
-        info!("Polling for data...");
+        let mut samples: Vec<Sample> = Vec::new();
 
-        let mut samples: Vec<plugin::Sample> = Vec::new();
-
-        for instance in self.instances.iter() {
+        for instance in self.input.iter() {
             match instance.poll() {
                 Err(err) => return future::err(err).boxed(),
                 Ok(s) => samples.extend(s),
@@ -28,7 +30,9 @@ impl Runnable for Poller {
         }
 
         for sample in samples {
-            info!("Sample: {:?}", sample);
+            for instance in self.output.iter() {
+                instance.feed(&sample);
+            }
         }
 
         future::ok(()).boxed()

@@ -39,16 +39,21 @@ impl fmt::Display for PluginKey {
 }
 
 pub type InputEntry = fn(key: &PluginKey, toml::Value) -> Result<Box<Input>>;
-pub type PluginRegistryKey = (PluginKind, String);
+pub type OutputEntry = fn(key: &PluginKey, toml::Value) -> Result<Box<Output>>;
 
 pub struct PluginRegistry {
-    input: HashMap<String, InputEntry>
+    input: HashMap<String, InputEntry>,
+    output: HashMap<String, OutputEntry>,
 }
 
 impl PluginRegistry {
-    pub fn new(input: HashMap<String, InputEntry>) -> PluginRegistry {
+    pub fn new(
+        input: HashMap<String, InputEntry>,
+        output: HashMap<String, OutputEntry>
+    ) -> PluginRegistry {
         PluginRegistry {
-            input: input
+            input: input,
+            output: output
         }
     }
 
@@ -56,8 +61,16 @@ impl PluginRegistry {
         self.input.get(plugin_type)
     }
 
+    pub fn get_output(&self, plugin_type: &String) -> Option<&OutputEntry> {
+        self.output.get(plugin_type)
+    }
+
     pub fn input_types<'a>(&'a self) -> impl Iterator<Item = &'a String> + 'a {
         self.input.keys()
+    }
+
+    pub fn output_types<'a>(&'a self) -> impl Iterator<Item = &'a String> + 'a {
+        self.output.keys()
     }
 }
 
@@ -104,11 +117,14 @@ pub trait InputInstance: fmt::Debug {
     }
 }
 
+pub trait OutputInstance: fmt::Debug {
+    fn feed(&self, sample: &Sample);
+}
+
 pub trait Input: fmt::Debug  {
     fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>>;
 }
 
-#[derive(Debug)]
-pub enum Control {
-    Exit
+pub trait Output: fmt::Debug  {
+    fn setup(&self, framework: &PluginFramework) -> Result<Box<OutputInstance>>;
 }

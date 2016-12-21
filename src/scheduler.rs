@@ -2,26 +2,36 @@ use ::errors::*;
 
 use futures::*;
 
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Duration;
 use tokio_timer::Timer;
+use futures_cpupool::CpuPool;
 
 pub trait Runnable {
     fn run(&self) -> BoxFuture<(), Error>;
 }
 
-/// Schedule that the given task should run at a given interval.
-pub fn schedule<R>(
-    timer: Arc<Timer>,
-    interval: Duration,
-    runnable: R
-) -> Box<Future<Item=(), Error=Error>>
-    where R: Runnable + 'static
-{
-    Box::new(timer.sleep(interval).map_err(Into::into).and_then(move |()| {
-        runnable.run().and_then(move |()| {
-            schedule(timer, interval, runnable)
-        })
-    }))
+pub struct Scheduler {
+    pool: Rc<CpuPool>,
+    timer: Rc<Timer>,
 }
 
+impl Scheduler {
+    pub fn new(pool: Rc<CpuPool>, timer: Rc<Timer>) -> Scheduler {
+        Scheduler {
+            pool: pool,
+            timer: timer,
+        }
+    }
+
+    pub fn schedule<R>(&self, duration: Duration, runnable: R)
+        where R: Runnable + 'static
+    {
+        self.timer.sleep(duration).and_then(move |_| {
+            runnable.run().and_then(move |_| {
+                self.schedule(duration, runnable);
+                future::ok(());
+            })
+        });
+    }
+}

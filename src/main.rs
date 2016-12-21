@@ -29,7 +29,8 @@ use std::time::Duration;
 use tokio_timer::Timer;
 
 enum LoadedPlugin {
-    Input(Box<Input>)
+    Input(Box<Input>),
+    Output(Box<Output>),
 }
 
 fn load_section(
@@ -54,8 +55,12 @@ fn load_section(
 
             entry(&plugin_key, section.clone()).map(LoadedPlugin::Input)
         }
-        _ => {
-            Err(ErrorKind::Message("unsupported kind".to_owned()).into())
+        PluginKind::Output => {
+            let entry: &OutputEntry = plugins
+                .get_output(plugin_type)
+                .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
+
+            entry(&plugin_key, section.clone()).map(LoadedPlugin::Output)
         }
     }
 }
@@ -97,6 +102,10 @@ fn print_usage(program: &str, plugins: &PluginRegistry, opts: Options) {
 
     for plugin_type in plugins.input_types() {
         println!("  input/{}", plugin_type);
+    }
+
+    for plugin_type in plugins.output_types() {
+        println!("  output/{}", plugin_type);
     }
 }
 
@@ -157,36 +166,46 @@ fn run() -> Result<()> {
 
     let loaded = load_configs(&configs, &plugins)?;
 
-    let pool = CpuPool::new(4);
+    let pool = Rc::new(CpuPool::new(4));
 
-    let timer = Arc::new(Timer::default());
+    let timer = Rc::new(Timer::default());
 
     let framework = PluginFramework {
-        cpupool: Rc::new(pool)
+        cpupool: pool.clone()
     };
 
     let mut input = Vec::new();
+    let mut output = Vec::new();
 
     for l in loaded {
         match l {
             LoadedPlugin::Input(plugin) => {
                 input.push(plugin.setup(&framework)?);
             }
+            LoadedPlugin::Output(plugin) => {
+                output.push(plugin.setup(&framework)?);
+            }
         }
     }
 
-    let poll_duration = Duration::new(5, 0);
+    let poll_duration = Duration::new(0, 10_000_000);
     let update_duration = Duration::new(1, 0);
 
-    let borroed_input = Arc::new(input);
-    let polling = schedule(timer.clone(), poll_duration, Poller::new(borroed_input.clone()));
-    let updating = schedule(timer.clone(), update_duration, Updater::new(borroed_input.clone()));
+    let i = Arc::new(input);
+    let o = Arc::new(output);
+    let poller = Poller::new(i.clone(), o.clone());
+    let updater = Updater::new(i.clone());
+
+    let scheduler = Scheduler::new(pool.clone(), timer.clone());
+
+    scheduler.schedule(poll_duration, poller);
+    scheduler.schedule(update_duration, updater);
 
     info!("Started!");
 
     info!("Shutting down!");
 
-    let _ = future::join_all(vec![polling, updating]).wait();
+    let _ = polling.join(updating).wait();
 
     Ok(())
 }

@@ -3,3 +3,6 @@ type = "input/cpu"
 
 [disk]
 type = "input/disk"
+
+[out]
+type = "output/debug"

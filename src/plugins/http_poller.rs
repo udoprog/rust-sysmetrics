@@ -3,17 +3,17 @@ use ::plugin::*;
 use toml;
 
 #[derive(Deserialize, Debug)]
-struct PollerConfig {
-    target: Option<String>
+struct HttpInputConfig {
+    target: String
 }
 
 #[derive(Debug)]
 struct HttpInput {
-    config: PollerConfig
+    config: HttpInputConfig
 }
 
 impl HttpInput {
-    pub fn new(c: PollerConfig) -> HttpInput {
+    pub fn new(c: HttpInputConfig) -> HttpInput {
         return HttpInput { config: c };
     }
 }
@@ -38,8 +38,6 @@ impl InputInstance for HttpInputInstance {
 }
 
 pub fn input(_: &PluginKey, config: toml::Value) -> Result<Box<Input>> {
-    let decoded: Result<PollerConfig> = toml::decode(config).ok_or(ErrorKind::Setup.into());
-    let c: PollerConfig = decoded?;
-
+    let c: HttpInputConfig = toml::decode(config).ok_or(ErrorKind::Setup)?;
     Ok(Box::new(HttpInput::new(c)))
 }

@@ -1,27 +1,22 @@
-use ::plugin;
-use ::scheduler::Runnable;
 use ::errors::*;
-use std::sync::Arc;
+use ::plugin::*;
+use ::scheduler::Runnable;
 use futures::*;
+use std::sync::Arc;
 
 pub struct Updater {
-    instances: Arc<Vec<Box<plugin::InputInstance>>>
+    instances: Arc<Vec<Box<InputInstance>>>
 }
 
 impl Updater {
-    pub fn new(instances: Arc<Vec<Box<plugin::InputInstance>>>) -> Updater {
+    pub fn new(instances: Arc<Vec<Box<InputInstance>>>) -> Updater {
         Updater {instances: instances}
     }
 }
 
 impl Runnable for Updater {
     fn run(&self) -> BoxFuture<(), Error> {
-        let mut futures = Vec::new();
-
-        for instance in self.instances.iter() {
-            futures.push(instance.update());
-        }
-
+        let futures: Vec<_> = self.instances.iter().map(|b| b.update()).collect();
         future::join_all(futures).map(|_| ()).boxed()
     }
 }
