@@ -1,4 +1,5 @@
 // Forked from https://github.com/ekarlso/rust-metrics/blob/4bf5446/src/ewma.rs
+#![allow(dead_code)]
 
 #[derive(Debug)]
 pub struct EWMA {

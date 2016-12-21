@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // Forked from https://github.com/ekarlso/rust-metrics/blob/4bf5446/src/meter.rs
 
 use super::ewma;

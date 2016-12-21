@@ -4,6 +4,8 @@ use std::io;
 use std::sync;
 use log;
 use nom;
+use toml;
+use ::plugin::PluginKey;
 
 error_chain! {
     foreign_links {
@@ -23,19 +25,34 @@ error_chain! {
             display("poison error: {}", msg)
         }
 
-        ConfigParse(path: String) {
+        TomlParse(errors: Vec<toml::ParserError>) {
             description("parse error")
-            display("parse error: {}", path)
+            display("parse error: {:?}", errors)
         }
 
-        ConfigKey(key: String) {
-            description("missing config key")
-            display("missing config key: {}", key)
+        TomlDecode {
+            description("decode error")
+            display("decode error")
         }
 
-        MissingPlugin(name: String) {
+        TomlKey(errors: Vec<toml::ParserError>) {
+            description("parse error")
+            display("parse error: {:?}", errors)
+        }
+
+        Config(path: String) {
+            description("error in config")
+            display("error in config: {}", path)
+        }
+
+        ConfigSection(section: String) {
+            description("error in section")
+            display("error in section: {}", section)
+        }
+
+        MissingPlugin(key: PluginKey) {
             description("missing plugin")
-            display("missing plugin: {}", name)
+            display("missing plugin: {}", key)
         }
 
         Nom(info: String) {

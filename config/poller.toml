@@ -1,3 +1,5 @@
 [cpu]
+type = "read/cpu"
 
 [disk]
+type = "write/disk"

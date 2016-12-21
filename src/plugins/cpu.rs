@@ -13,24 +13,18 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use toml;
-use std::time::Instant;
 
 #[derive(Debug)]
 struct Cpu {
-    key: String
 }
 
 impl Cpu {
-    pub fn new(key: String) -> Cpu {
-        Cpu { key: key.to_owned() }
+    pub fn new() -> Cpu {
+        Cpu {}
     }
 }
 
 impl Plugin for Cpu {
-    fn key(&self) -> &str {
-        self.key.as_str()
-    }
-
     fn setup(&self, framework: &PluginFramework) -> Result<Box<PluginInstance>> {
         let instance = CpuInstance::new(framework.cpupool.clone());
 
@@ -129,8 +123,8 @@ impl PluginInstance for CpuInstance {
     }
 }
 
-pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>> {
-    Ok(Box::new(Cpu::new(key)))
+pub fn entry(_: &PluginKey, _: toml::Value) -> Result<Box<Plugin>> {
+    Ok(Box::new(Cpu::new()))
 }
 
 #[cfg(test)]

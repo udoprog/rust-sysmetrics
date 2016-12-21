@@ -1,26 +1,18 @@
 use ::errors::*;
 use ::plugin::*;
-use futures::*;
 use toml;
 
 #[derive(Debug)]
 struct LoadPoller {
-    key: String
 }
 
 impl LoadPoller {
-    pub fn new(key: String) -> LoadPoller {
-        LoadPoller {
-            key: key
-        }
+    pub fn new() -> LoadPoller {
+        LoadPoller {}
     }
 }
 
 impl Plugin for LoadPoller {
-    fn key(&self) -> &str {
-        self.key.as_str()
-    }
-
     fn setup(&self, _: &PluginFramework) -> Result<Box<PluginInstance>> {
         Ok(Box::new(LoadInstance::new()))
     }
@@ -39,6 +31,6 @@ impl LoadInstance {
 impl PluginInstance for LoadInstance {
 }
 
-pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>> {
-    Ok(Box::new(LoadPoller::new(key)))
+pub fn entry(_: &PluginKey, _: toml::Value) -> Result<Box<Plugin>> {
+    Ok(Box::new(LoadPoller::new()))
 }

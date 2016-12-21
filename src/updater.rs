@@ -22,9 +22,7 @@ impl Runnable for Updater {
             futures.push(instance.update());
         }
 
-        let all = future::join_all(futures).map(|res| ());
-
-        all.boxed()
+        future::join_all(futures).map(|_| ()).boxed()
     }
 }
 

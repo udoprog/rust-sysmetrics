@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate num;
 
 #[derive(Copy, Clone, Debug)]

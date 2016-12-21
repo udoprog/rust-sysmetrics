@@ -9,47 +9,55 @@ extern crate log;
 #[cfg(features = "watch")]
 extern crate notify;
 
+use sysmon::errors::*;
+use sysmon::logger;
+use sysmon::parsers::*;
+use sysmon::plugin::*;
+use sysmon::poller::Poller;
+use sysmon::scheduler::*;
+use sysmon::updater::Updater;
+
 use futures::*;
 use futures_cpupool::CpuPool;
 use getopts::Options;
-use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::Read;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio_timer::Timer;
 
-use sysmon::logger;
-use sysmon::plugin;
-use sysmon::poller::Poller;
-use sysmon::updater::Updater;
-use sysmon::scheduler::*;
-use sysmon::errors::*;
-
-type PluginRegistry = HashMap<String, plugin::Entry>;
-
 fn load_instance(
-    plugins: &PluginRegistry, key: &String, section: &toml::Value
-) -> Result<Box<plugin::Plugin>> {
-    let mut parts = key.split("/");
+    plugins: &PluginRegistry, plugin_type: &String, section: &toml::Value
+) -> Result<Box<Plugin>> {
+    let plugin_key = parse_plugin_key(plugin_type.as_bytes()).to_full_result()?;
 
-    let plugin_type: &str = parts
-        .next()
-        .ok_or(ErrorKind::ConfigKey(key.to_owned()))?;
+    let key = (plugin_key.plugin_kind.clone(), plugin_key.plugin_type.clone());
 
-    let entry: &plugin::Entry = plugins
-        .get(plugin_type)
-        .ok_or(ErrorKind::MissingPlugin(plugin_type.to_owned()))?;
+    let entry: &Entry = plugins
+        .get(&key)
+        .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
 
-    entry(key.clone(), section.clone())
+    entry(&plugin_key, section.clone())
+}
+
+fn load_section(
+    plugins: &PluginRegistry,
+    section: toml::Value
+) -> Result<Box<Plugin>> {
+    let plugin_type: String = toml::decode(section.clone())
+        .and_then(|value: toml::Table| {
+            value.get("type").map(Clone::clone).and_then(toml::decode)
+        })
+        .ok_or(ErrorKind::TomlDecode)?;
+
+    load_instance(plugins, &plugin_type, &section)
 }
 
 fn load_config(
     path: &String, plugins: &PluginRegistry
-) -> Result<Vec<Box<plugin::Plugin>>>
+) -> Result<Vec<Box<Plugin>>>
 {
     let mut file = fs::File::open(path)?;
 
@@ -58,16 +66,19 @@ fn load_config(
 
     let mut parser = toml::Parser::new(&mut content);
 
-    let config = try!(
-        parser.parse()
-            .ok_or(ErrorKind::ConfigParse(path.clone())));
+    let config = match parser.parse() {
+        Some(value) => value,
+        None => {
+            return Err(ErrorKind::TomlParse(parser.errors).into())
+        }
+    };
 
     let mut instances = Vec::new();
 
-    for (key, section) in &config {
-        let instance = load_instance(plugins, key, section)
-            .chain_err(|| ErrorKind::ConfigParse(path.clone()))?;
-        instances.push(instance)
+    for (section_key, section) in config.into_iter() {
+        instances.push(load_section(plugins, section).chain_err(|| {
+            ErrorKind::ConfigSection(section_key)
+        })?);
     }
 
     Ok(instances)
@@ -79,21 +90,24 @@ fn print_usage(program: &str, plugins: &PluginRegistry, opts: Options) {
 
     println!("Plugins:");
 
-    for (k, _) in plugins {
-        println!("  {}", k);
+    for (&(ref kind, ref name), _) in plugins {
+        println!("  {:?}:{}", kind, name);
     }
 }
 
 fn load_configs(
     configs: &Vec<String>,
     plugins: &PluginRegistry
-) -> Result<Vec<Box<plugin::Plugin>>>
+) -> Result<Vec<Box<Plugin>>>
 {
-    let mut loaded: Vec<Box<plugin::Plugin>> = Vec::new();
+    let mut loaded: Vec<Box<Plugin>> = Vec::new();
 
     for config in configs {
         info!("loading: {}", config);
-        loaded.extend(load_config(config, plugins)?);
+
+        loaded.extend(load_config(config, plugins).chain_err(|| {
+            ErrorKind::Config(config.clone())
+        })?);
     }
 
     Ok(loaded)
@@ -142,7 +156,7 @@ fn run() -> Result<()> {
 
     let timer = Arc::new(Timer::default());
 
-    let framework = plugin::PluginFramework {
+    let framework = PluginFramework {
         cpupool: Rc::new(pool)
     };
 
@@ -163,7 +177,7 @@ fn run() -> Result<()> {
 
     info!("Shutting down!");
 
-    future::join_all(vec![polling, updating]).wait();
+    let _ = future::join_all(vec![polling, updating]).wait();
 
     Ok(())
 }
@@ -171,14 +185,14 @@ fn run() -> Result<()> {
 fn main() {
     match run() {
         Err(e) => {
-            println!("error: {}", e);
+            println!("{}", e);
 
             for e in e.iter().skip(1) {
-                println!("caused by: {}", e);
+                println!("  caused by: {}", e);
             }
 
             if let Some(backtrace) = e.backtrace() {
-                println!("backtrace: {:?}", backtrace);
+                println!("  backtrace: {:?}", backtrace);
             }
 
             ::std::process::exit(1);

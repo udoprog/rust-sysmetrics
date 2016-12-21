@@ -1,5 +1,6 @@
 #![feature(proc_macro)]
 #![feature(integer_atomics)]
+#![recursion_limit = "1024"]
 
 #[macro_use]
 extern crate log;
