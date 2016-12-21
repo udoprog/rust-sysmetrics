@@ -62,7 +62,8 @@ impl Metrics {
                 let total_diff = next.total() - prev.total();
 
                 if total_diff > 0 {
-                    self.used_percentage.1.set(((next.user - prev.user) as f64) / total_diff as f64);
+                    self.used_percentage.1.set(((next.used() - prev.used()) as f64) / total_diff as f64);
+                    self.free_percentage.1.set(((next.free() - prev.free()) as f64) / total_diff as f64);
                 }
 
                 Some(next)

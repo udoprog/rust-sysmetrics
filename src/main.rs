@@ -152,7 +152,7 @@ fn run() -> Result<()> {
         instances.push(plugin.setup(&framework)?);
     }
 
-    let poll_duration = Duration::new(1, 0);
+    let poll_duration = Duration::new(5, 0);
     let update_duration = Duration::new(1, 0);
 
     let borrowed = Arc::new(instances);
@@ -160,8 +160,6 @@ fn run() -> Result<()> {
     let updating = schedule(timer.clone(), update_duration, Updater::new(borrowed.clone()));
 
     info!("Started!");
-
-    // thread::sleep(Duration::from_millis(10000));
 
     info!("Shutting down!");
 

@@ -42,6 +42,23 @@ impl StatCpu {
             self.guest +
             self.guest_nice;
     }
+
+    pub fn used(&self) -> u64 {
+        return
+            self.user +
+            self.nice +
+            self.system +
+            self.iowait +
+            self.irq +
+            self.softirq +
+            self.steal +
+            self.guest +
+            self.guest_nice;
+    }
+
+    pub fn free(&self) -> u64 {
+        return self.idle;
+    }
 }
 
 named!(pub parse_stat_cpu<StatCpu>,

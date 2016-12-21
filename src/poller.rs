@@ -2,6 +2,7 @@ use ::plugin;
 use ::scheduler::Runnable;
 use ::errors::*;
 use std::sync::Arc;
+use futures::*;
 
 pub struct Poller {
     instances: Arc<Vec<Box<plugin::PluginInstance>>>
@@ -14,20 +15,23 @@ impl Poller {
 }
 
 impl Runnable for Poller {
-    fn run(&self) -> Result<()> {
+    fn run(&self) -> BoxFuture<(), Error> {
         info!("Polling for data...");
 
         let mut samples: Vec<plugin::Sample> = Vec::new();
 
         for instance in self.instances.iter() {
-            samples.extend(try!(instance.poll()));
+            match instance.poll() {
+                Err(err) => return future::err(err).boxed(),
+                Ok(s) => samples.extend(s),
+            }
         }
 
         for sample in samples {
             info!("Sample: {:?}", sample);
         }
 
-        Ok(())
+        future::ok(()).boxed()
     }
 }
 
