@@ -1,5 +1,7 @@
 use ::metric::*;
 use ::plugin::*;
+use ::errors::*;
+
 use futures::*;
 use futures_cpupool::*;
 use std::fmt;
@@ -27,9 +29,10 @@ impl Plugin for Cpu {
         self.key.as_str()
     }
 
-    fn setup(&self, framework: &PluginFramework) -> Box<PluginInstance> {
+    fn setup(&self, framework: &PluginFramework) -> Result<Box<PluginInstance>> {
         let instance = CpuInstance::new(framework.cpupool.clone());
-        Box::new(instance)
+
+        Ok(Box::new(instance))
     }
 }
 
@@ -66,19 +69,19 @@ impl CpuInstance {
         }
     }
 
-    fn update_inner(&mut self) -> Box<Fn() -> Result<(), UpdateError> + Send> {
+    fn update_inner(&mut self) -> Box<Fn() -> Result<()> + Send> {
         let metrics = self.metrics.clone();
 
         return Box::new(move || {
-            let file = File::open("/proc/stat").map_err(UpdateError::IO)?;
+            let file = File::open("/proc/stat")?;
             let mut reader = BufReader::new(file);
             let mut buffer = String::new();
 
-            reader.read_line(&mut buffer).map_err(UpdateError::IO)?;
+            reader.read_line(&mut buffer)?;
 
             info!("TODO(PARSE): {:?}", buffer);
 
-            let mut metrics = metrics.lock().map_err(|err| UpdateError::Message(err.to_string()))?;
+            let mut metrics = metrics.lock()?;
 
             metrics.used_percentage.set(42.0 as f64);
             Ok(())
@@ -87,8 +90,8 @@ impl CpuInstance {
 }
 
 impl PluginInstance for CpuInstance {
-    fn poll(&self) -> Result<Samples, PollError> {
-        let ref mut m = try!(self.metrics.lock().map_err(|err| PollError::Message(err.to_string())));
+    fn poll(&self) -> Result<Samples> {
+        let ref mut m = self.metrics.lock()?;
 
         let results = vec![
             Sample::new(m.free_percentage_id.clone(), m.free_percentage.snapshot()),
@@ -98,7 +101,7 @@ impl PluginInstance for CpuInstance {
         Ok(results)
     }
 
-    fn update(&mut self) -> BoxFuture<(), UpdateError> {
+    fn update(&mut self) -> BoxFuture<(), Error> {
         let op = self.update_inner();
 
         self.cpupool.spawn(future::lazy(move || future::result(op()))).boxed()
@@ -109,7 +112,7 @@ impl PluginInstance for CpuInstance {
     }
 }
 
-pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>, SetupError> {
+pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>> {
     Ok(Box::new(Cpu::new(key)))
 }
 

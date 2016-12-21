@@ -13,11 +13,11 @@ impl Poller {
 }
 
 impl Runnable for Poller {
-    fn run(&self) -> Result<(), MainError> {
+    fn run(&self) -> Result<()> {
         let mut samples: Vec<plugin::Sample> = Vec::new();
 
         for instance in self.instances.iter() {
-            samples.extend(try!(instance.poll().map_err(MainError::PluginPoll)));
+            samples.extend(try!(instance.poll()));
         }
 
         for sample in samples {

@@ -1,3 +1,4 @@
+use ::errors::*;
 use ::plugin::*;
 use futures::*;
 use toml;
@@ -20,8 +21,8 @@ impl Plugin for DiskPoller {
         self.key.as_str()
     }
 
-    fn setup(&self, _: &PluginFramework) -> Box<PluginInstance> {
-        Box::new(DiskInstance::new())
+    fn setup(&self, _: &PluginFramework) -> Result<Box<PluginInstance>> {
+        Ok(Box::new(DiskInstance::new()))
     }
 }
 
@@ -38,6 +39,6 @@ impl DiskInstance {
 impl PluginInstance for DiskInstance {
 }
 
-pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>, SetupError> {
+pub fn entry(key: String, _: toml::Value) -> Result<Box<Plugin>> {
     Ok(Box::new(DiskPoller::new(key)))
 }

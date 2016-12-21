@@ -1,13 +1,14 @@
+use ::errors::*;
 use futures::*;
 use futures_cpupool::CpuPool;
 use metric::MetricId;
 use std::fmt::Debug;
+use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_timer::Timer;
 use toml;
-use std::io;
-use std::time::Duration;
 
 #[derive(Debug)]
 pub struct Sample {
@@ -23,29 +24,18 @@ impl Sample {
 
 pub type Samples = Vec<Sample>;
 
-#[derive(Debug)]
-pub enum PollError {
-    Message(String)
-}
-
-#[derive(Debug)]
-pub enum UpdateError {
-    IO(io::Error),
-    Message(String)
-}
-
 pub struct PluginFramework {
     pub cpupool: Rc<CpuPool>
 }
 
 pub trait PluginInstance: Debug {
     /// Poll the state of the plugin instance.
-    fn poll(&self) -> Result<Samples, PollError> {
+    fn poll(&self) -> Result<Samples> {
         Ok(Vec::new())
     }
 
     /// Update the state of the plugin instance.
-    fn update(&mut self) -> BoxFuture<(), UpdateError> {
+    fn update(&mut self) -> BoxFuture<(), Error> {
         future::ok(()).boxed()
     }
 
@@ -58,12 +48,7 @@ pub trait PluginInstance: Debug {
 pub trait Plugin: Debug  {
     fn key(&self) -> &str;
 
-    fn setup(&self, framework: &PluginFramework) -> Box<PluginInstance>;
-}
-
-#[derive(Debug)]
-pub enum SetupError {
-    DecodeError
+    fn setup(&self, framework: &PluginFramework) -> Result<Box<PluginInstance>>;
 }
 
 #[derive(Debug)]
@@ -71,4 +56,4 @@ pub enum Control {
     Exit
 }
 
-pub type Entry = fn(String, toml::Value) -> Result<Box<Plugin>, SetupError>;
+pub type Entry = fn(String, toml::Value) -> Result<Box<Plugin>>;

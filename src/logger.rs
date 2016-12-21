@@ -1,3 +1,4 @@
+use ::errors::*;
 use log;
 
 struct SimpleLogger;
@@ -14,9 +15,9 @@ impl log::Log for SimpleLogger {
     }
 }
 
-pub fn init(level: log::LogLevelFilter) -> Result<(), log::SetLoggerError> {
+pub fn init(level: log::LogLevelFilter) -> Result<()> {
     log::set_logger(|max_level| {
         max_level.set(level);
         Box::new(SimpleLogger)
-    })
+    }).map_err(|e| e.into())
 }

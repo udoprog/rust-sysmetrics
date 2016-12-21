@@ -16,7 +16,6 @@ use std::env;
 use std::fs;
 use std::io::Read;
 use std::rc::Rc;
-use std::result::Result;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -26,46 +25,53 @@ use sysmon::logger;
 use sysmon::plugin;
 use sysmon::poller::Poller;
 use sysmon::scheduler::*;
+use sysmon::errors::*;
 
-#[derive(Debug)]
-enum ConfigError {
-    IO(std::io::Error),
-    ParseError(String),
-    PluginSetup(plugin::SetupError),
-    BadKey(String),
-    MissingPlugin(String)
+type PluginRegistry = HashMap<String, plugin::Entry>;
+
+fn load_instance(
+    plugins: &PluginRegistry, key: &String, section: &toml::Value
+) -> Result<Box<plugin::Plugin>> {
+    let mut parts = key.split("/");
+
+    let plugin_type: &str = parts
+        .next()
+        .ok_or(ErrorKind::ConfigKey(key.to_owned()))?;
+
+    let entry: &plugin::Entry = plugins
+        .get(plugin_type)
+        .ok_or(ErrorKind::MissingPlugin(plugin_type.to_owned()))?;
+
+    entry(key.clone(), section.clone())
 }
 
 fn load_config(
-    path: &String, plugins: &HashMap<String, plugin::Entry>
-) -> Result<Vec<Box<plugin::Plugin>>, ConfigError>
+    path: &String, plugins: &PluginRegistry
+) -> Result<Vec<Box<plugin::Plugin>>>
 {
-    let mut file = try!(fs::File::open(path).map_err(ConfigError::IO));
+    let mut file = fs::File::open(path)?;
 
     let mut content = String::new();
-    try!(file.read_to_string(&mut content).map_err(ConfigError::IO));
+    file.read_to_string(&mut content)?;
 
     let mut parser = toml::Parser::new(&mut content);
 
     let config = try!(
         parser.parse()
-            .ok_or(ConfigError::ParseError(path.clone())));
+            .ok_or(ErrorKind::ConfigParse(path.clone())));
 
     let mut instances = Vec::new();
 
     for (key, section) in &config {
-        let mut parts = key.split("/");
-
-        let plugin_type: &str = try!(parts.next().ok_or(ConfigError::BadKey(key.to_owned())));
-        let entry: &plugin::Entry = try!(plugins.get(plugin_type).ok_or(ConfigError::MissingPlugin(plugin_type.to_owned())));
-        let instance: Box<plugin::Plugin> = try!(entry(key.clone(), section.clone()).map_err(ConfigError::PluginSetup));
+        let instance = load_instance(plugins, key, section)
+            .chain_err(|| ErrorKind::ConfigParse(path.clone()))?;
         instances.push(instance)
     }
 
     Ok(instances)
 }
 
-fn print_usage(program: &str, plugins: &HashMap<String, plugin::Entry>, opts: Options) {
+fn print_usage(program: &str, plugins: &PluginRegistry, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     println!("{}", opts.usage(&brief));
 
@@ -76,7 +82,22 @@ fn print_usage(program: &str, plugins: &HashMap<String, plugin::Entry>, opts: Op
     }
 }
 
-fn main() {
+fn load_configs(
+    configs: &Vec<String>,
+    plugins: &PluginRegistry
+) -> Result<Vec<Box<plugin::Plugin>>>
+{
+    let mut loaded: Vec<Box<plugin::Plugin>> = Vec::new();
+
+    for config in configs {
+        info!("loading: {}", config);
+        loaded.extend(load_config(config, plugins)?);
+    }
+
+    Ok(loaded)
+}
+
+fn run() -> Result<()> {
     let mut opts = Options::new();
 
     opts.optflag("h", "help", "print this help");
@@ -89,21 +110,19 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 
-    let plugins: HashMap<String, plugin::Entry> = sysmon::plugins::load_plugins();
+    let plugins: PluginRegistry = sysmon::plugins::load_plugins();
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
         Err(f) => {
-            println!("Failed to parse options: {}", f.to_string());
-            println!("");
             print_usage(&program, &plugins, opts);
-            return
+            return Err(ErrorKind::Message(f.to_string()).into())
         }
     };
 
     if matches.opt_present("h") {
         print_usage(&program, &plugins, opts);
-        return;
+        return Ok(())
     }
 
     let level: log::LogLevelFilter = match matches.opt_present("debug") {
@@ -111,21 +130,11 @@ fn main() {
         false => log::LogLevelFilter::Info,
     };
 
-    match logger::init(level) {
-        Err(f) => {
-            println!("Failed to initialize log: {}", f.to_string());
-            return;
-        },
-        _ => {}
-    }
+    logger::init(level)?;
 
     let configs = matches.opt_strs("config");
-    let mut loaded: Vec<Box<plugin::Plugin>> = Vec::new();
 
-    for config in configs {
-        info!("loading: {}", config);
-        loaded.extend(load_config(&config, &plugins).unwrap());
-    }
+    let loaded = load_configs(&configs, &plugins)?;
 
     let pool = CpuPool::new(4);
 
@@ -135,9 +144,11 @@ fn main() {
         cpupool: Rc::new(pool)
     };
 
-    let instances: Vec<Box<plugin::PluginInstance>> = loaded.into_iter().map(|plugin| {
-        plugin.setup(&framework)
-    }).collect();
+    let mut instances = Vec::new();
+
+    for plugin in loaded {
+        instances.push(plugin.setup(&framework)?);
+    }
 
     let poll_duration = Duration::new(5, 0);
 
@@ -150,4 +161,27 @@ fn main() {
     drop(polling);
 
     info!("Shutting down!");
+
+    Ok(())
+}
+
+fn main() {
+    match run() {
+        Err(e) => {
+            println!("error: {}", e);
+
+            for e in e.iter().skip(1) {
+                println!("caused by: {}", e);
+            }
+
+            if let Some(backtrace) = e.backtrace() {
+                println!("backtrace: {:?}", backtrace);
+            }
+
+            ::std::process::exit(1);
+        },
+        Ok(loaded) => loaded,
+    }
+
+    ::std::process::exit(0);
 }
