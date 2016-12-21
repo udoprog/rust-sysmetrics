@@ -24,9 +24,9 @@ impl Cpu {
     }
 }
 
-impl Plugin for Cpu {
-    fn setup(&self, framework: &PluginFramework) -> Result<Box<PluginInstance>> {
-        let instance = CpuInstance::new(framework.cpupool.clone());
+impl Input for Cpu {
+    fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>> {
+        let instance = CpuInputInstance::new(framework.cpupool.clone());
 
         Ok(Box::new(instance))
     }
@@ -34,8 +34,8 @@ impl Plugin for Cpu {
 
 struct Metrics {
     previous: Option<StatCpu>,
-    used_percentage: (Arc<MetricId>, Gauge),
-    free_percentage: (Arc<MetricId>, Gauge)
+    used: (Arc<MetricId>, Gauge),
+    free: (Arc<MetricId>, Gauge)
 }
 
 impl Metrics {
@@ -56,8 +56,10 @@ impl Metrics {
                 let total_diff = next.total() - prev.total();
 
                 if total_diff > 0 {
-                    self.used_percentage.1.set(((next.used() - prev.used()) as f64) / total_diff as f64);
-                    self.free_percentage.1.set(((next.free() - prev.free()) as f64) / total_diff as f64);
+                    let differ = |n, p| ((n - p) as f64) / total_diff as f64;
+
+                    self.used.1.set(differ(next.used(), prev.used()));
+                    self.free.1.set(differ(next.free(), prev.free()));
                 }
 
                 Some(next)
@@ -68,39 +70,39 @@ impl Metrics {
     }
 }
 
-struct CpuInstance {
+struct CpuInputInstance {
     metrics: Arc<Mutex<Metrics>>,
     cpupool: Rc<CpuPool>,
     next_update: Duration
 }
 
-impl fmt::Debug for CpuInstance {
+impl fmt::Debug for CpuInputInstance {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CpuInstance")
+        write!(f, "CpuInputInstance")
     }
 }
 
-impl CpuInstance {
-    pub fn new(cpupool: Rc<CpuPool>) -> CpuInstance {
-        CpuInstance {
+impl CpuInputInstance {
+    pub fn new(cpupool: Rc<CpuPool>) -> CpuInputInstance {
+        CpuInputInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
                 previous: None,
-                used_percentage: (Arc::new(key("cpu-used-percentage")), Gauge::new()),
-                free_percentage: (Arc::new(key("cpu-free-percentage")), Gauge::new())
+                used: (Arc::new(key("cpu-used-percentage").tag("unit", "%")), Gauge::new()),
+                free: (Arc::new(key("cpu-free-percentage").tag("unit", "%")), Gauge::new())
             })),
             cpupool: cpupool
         }
     }
 }
 
-impl PluginInstance for CpuInstance {
+impl InputInstance for CpuInputInstance {
     fn poll(&self) -> Result<Samples> {
         let ref mut m = self.metrics.lock()?;
 
         let results = vec![
-            Sample::new(m.free_percentage.0.clone(), m.free_percentage.1.snapshot()),
-            Sample::new(m.used_percentage.0.clone(), m.used_percentage.1.snapshot())
+            Sample::new(m.free.0.clone(), m.free.1.snapshot()),
+            Sample::new(m.used.0.clone(), m.used.1.snapshot())
         ];
 
         Ok(results)
@@ -123,7 +125,7 @@ impl PluginInstance for CpuInstance {
     }
 }
 
-pub fn entry(_: &PluginKey, _: toml::Value) -> Result<Box<Plugin>> {
+pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
     Ok(Box::new(Cpu::new()))
 }
 

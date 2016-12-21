@@ -8,38 +8,38 @@ struct PollerConfig {
 }
 
 #[derive(Debug)]
-struct HttpPoller {
+struct HttpInput {
     config: PollerConfig
 }
 
-impl HttpPoller {
-    pub fn new(c: PollerConfig) -> HttpPoller {
-        return HttpPoller { config: c };
+impl HttpInput {
+    pub fn new(c: PollerConfig) -> HttpInput {
+        return HttpInput { config: c };
     }
 }
 
-impl Plugin for HttpPoller {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<PluginInstance>> {
-        Ok(Box::new(HttpPollerInstance::new()))
+impl Input for HttpInput {
+    fn setup(&self, _: &PluginFramework) -> Result<Box<InputInstance>> {
+        Ok(Box::new(HttpInputInstance::new()))
     }
 }
 
 #[derive(Debug)]
-struct HttpPollerInstance {
+struct HttpInputInstance {
 }
 
-impl HttpPollerInstance {
-    pub fn new() -> HttpPollerInstance {
-        return HttpPollerInstance {  };
+impl HttpInputInstance {
+    pub fn new() -> HttpInputInstance {
+        return HttpInputInstance {  };
     }
 }
 
-impl PluginInstance for HttpPollerInstance {
+impl InputInstance for HttpInputInstance {
 }
 
-pub fn entry(_: &PluginKey, config: toml::Value) -> Result<Box<Plugin>> {
+pub fn input(_: &PluginKey, config: toml::Value) -> Result<Box<Input>> {
     let decoded: Result<PollerConfig> = toml::decode(config).ok_or(ErrorKind::Setup.into());
     let c: PollerConfig = decoded?;
 
-    Ok(Box::new(HttpPoller::new(c)))
+    Ok(Box::new(HttpInput::new(c)))
 }

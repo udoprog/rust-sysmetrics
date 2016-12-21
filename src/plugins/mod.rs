@@ -9,14 +9,14 @@ use ::plugin::*;
 use std::collections::HashMap;
 
 pub fn load_plugins() -> PluginRegistry {
-    let mut m: PluginRegistry = HashMap::new();
+    let mut input: HashMap<String, InputEntry> = HashMap::new();
 
-    m.insert((PluginKind::Read, "disk".to_owned()), disk::entry);
-    m.insert((PluginKind::Read, "cpu".to_owned()), cpu::entry);
-    m.insert((PluginKind::Read, "load".to_owned()), load::entry);
+    input.insert("disk".to_owned(), disk::input);
+    input.insert("cpu".to_owned(), cpu::input);
+    input.insert("load".to_owned(), load::input);
 
     #[cfg(feature = "http")]
-    m.insert((PluginKind::Read, "http_poller".to_owned()), http_poller::entry);
+    input.insert("http_poller".to_owned(), http_poller::input);
 
-    m
+    PluginRegistry::new(input)
 }

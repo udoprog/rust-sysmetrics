@@ -9,8 +9,8 @@ named!(pub type_alphanumeric<String>,
        map!(map_res!(alphanumeric, str::from_utf8), ToOwned::to_owned));
 
 named!(parse_plugin_kind<PluginKind>,
-       alt!(tag!("read") => { |_| PluginKind::Read } |
-            tag!("write") => { |_| PluginKind::Write }));
+       alt!(tag!("input") => { |_| PluginKind::Input } |
+            tag!("output") => { |_| PluginKind::Output }));
 
 named!(
     pub parse_plugin_key<PluginKey>,

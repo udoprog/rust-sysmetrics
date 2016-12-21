@@ -51,8 +51,8 @@ error_chain! {
         }
 
         MissingPlugin(key: PluginKey) {
-            description("missing plugin")
-            display("missing plugin: {}", key)
+            description("no such plugin")
+            display("no such plugin: {}", key)
         }
 
         Nom(info: String) {

@@ -1,5 +1,5 @@
 [cpu]
-type = "read/cpu"
+type = "input/cpu"
 
 [disk]
-type = "write/disk"
+type = "input/disk"

@@ -3,34 +3,34 @@ use ::plugin::*;
 use toml;
 
 #[derive(Debug)]
-struct LoadPoller {
+struct LoadInput {
 }
 
-impl LoadPoller {
-    pub fn new() -> LoadPoller {
-        LoadPoller {}
+impl LoadInput {
+    pub fn new() -> LoadInput {
+        LoadInput {}
     }
 }
 
-impl Plugin for LoadPoller {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<PluginInstance>> {
-        Ok(Box::new(LoadInstance::new()))
+impl Input for LoadInput {
+    fn setup(&self, _: &PluginFramework) -> Result<Box<InputInstance>> {
+        Ok(Box::new(LoadInputInstance::new()))
     }
 }
 
 #[derive(Debug)]
-struct LoadInstance {
+struct LoadInputInstance {
 }
 
-impl LoadInstance {
-    pub fn new() -> LoadInstance {
-        LoadInstance {  }
+impl LoadInputInstance {
+    pub fn new() -> LoadInputInstance {
+        LoadInputInstance {  }
     }
 }
 
-impl PluginInstance for LoadInstance {
+impl InputInstance for LoadInputInstance {
 }
 
-pub fn entry(_: &PluginKey, _: toml::Value) -> Result<Box<Plugin>> {
-    Ok(Box::new(LoadPoller::new()))
+pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
+    Ok(Box::new(LoadInput::new()))
 }

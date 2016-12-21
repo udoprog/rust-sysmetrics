@@ -12,14 +12,15 @@ use toml;
 /// The kind of the plugin being configured.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy, Clone)]
 pub enum PluginKind {
-    Read, Write
+    Input,
+    Output
 }
 
 impl fmt::Display for PluginKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PluginKind::Read => write!(f, "read"),
-            PluginKind::Write => write!(f, "write"),
+            PluginKind::Input => write!(f, "input"),
+            PluginKind::Output => write!(f, "output"),
         }
     }
 }
@@ -37,8 +38,28 @@ impl fmt::Display for PluginKey {
     }
 }
 
+pub type InputEntry = fn(key: &PluginKey, toml::Value) -> Result<Box<Input>>;
 pub type PluginRegistryKey = (PluginKind, String);
-pub type PluginRegistry = HashMap<PluginRegistryKey, Entry>;
+
+pub struct PluginRegistry {
+    input: HashMap<String, InputEntry>
+}
+
+impl PluginRegistry {
+    pub fn new(input: HashMap<String, InputEntry>) -> PluginRegistry {
+        PluginRegistry {
+            input: input
+        }
+    }
+
+    pub fn get_input(&self, plugin_type: &String) -> Option<&InputEntry> {
+        self.input.get(plugin_type)
+    }
+
+    pub fn input_types<'a>(&'a self) -> impl Iterator<Item = &'a String> + 'a {
+        self.input.keys()
+    }
+}
 
 /// A single data sample.
 #[derive(Debug)]
@@ -59,13 +80,20 @@ pub struct PluginFramework {
     pub cpupool: Rc<CpuPool>
 }
 
-pub trait PluginInstance: fmt::Debug {
+pub trait InputInstance: fmt::Debug {
     /// Poll the state of the plugin instance.
+    ///
+    /// This is completely independent of the update cycle.
     fn poll(&self) -> Result<Samples> {
         Ok(Vec::new())
     }
 
     /// Update the state of the plugin instance.
+    ///
+    /// Returns a future since the operation could be potentially long-running.
+    ///
+    /// Blocked futures will prevent additional updates from being scheduled until the previous one
+    /// has been resolved.
     fn update(&self) -> BoxFuture<(), Error> {
         future::ok(()).boxed()
     }
@@ -76,13 +104,11 @@ pub trait PluginInstance: fmt::Debug {
     }
 }
 
-pub trait Plugin: fmt::Debug  {
-    fn setup(&self, framework: &PluginFramework) -> Result<Box<PluginInstance>>;
+pub trait Input: fmt::Debug  {
+    fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>>;
 }
 
 #[derive(Debug)]
 pub enum Control {
     Exit
 }
-
-pub type Entry = fn(key: &PluginKey, toml::Value) -> Result<Box<Plugin>>;

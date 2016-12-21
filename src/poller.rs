@@ -5,11 +5,11 @@ use std::sync::Arc;
 use futures::*;
 
 pub struct Poller {
-    instances: Arc<Vec<Box<plugin::PluginInstance>>>
+    instances: Arc<Vec<Box<plugin::InputInstance>>>
 }
 
 impl Poller {
-    pub fn new(instances: Arc<Vec<Box<plugin::PluginInstance>>>) -> Poller {
+    pub fn new(instances: Arc<Vec<Box<plugin::InputInstance>>>) -> Poller {
         Poller {instances: instances}
     }
 }

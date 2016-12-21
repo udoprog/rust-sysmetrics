@@ -3,34 +3,34 @@ use ::plugin::*;
 use toml;
 
 #[derive(Debug)]
-struct DiskPoller {
+struct DiskInput {
 }
 
-impl DiskPoller {
-    pub fn new() -> DiskPoller {
-        DiskPoller { }
+impl DiskInput {
+    pub fn new() -> DiskInput {
+        DiskInput { }
     }
 }
 
-impl Plugin for DiskPoller {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<PluginInstance>> {
-        Ok(Box::new(DiskInstance::new()))
+impl Input for DiskInput {
+    fn setup(&self, _: &PluginFramework) -> Result<Box<InputInstance>> {
+        Ok(Box::new(DiskInputInstance::new()))
     }
 }
 
 #[derive(Debug)]
-struct DiskInstance {
+struct DiskInputInstance {
 }
 
-impl DiskInstance {
-    pub fn new() -> DiskInstance {
-        DiskInstance {}
+impl DiskInputInstance {
+    pub fn new() -> DiskInputInstance {
+        DiskInputInstance {}
     }
 }
 
-impl PluginInstance for DiskInstance {
+impl InputInstance for DiskInputInstance {
 }
 
-pub fn entry(_: &PluginKey, _: toml::Value) -> Result<Box<Plugin>> {
-    Ok(Box::new(DiskPoller::new()))
+pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
+    Ok(Box::new(DiskInput::new()))
 }

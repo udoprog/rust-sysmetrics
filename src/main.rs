@@ -28,36 +28,41 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio_timer::Timer;
 
-fn load_instance(
-    plugins: &PluginRegistry, plugin_type: &String, section: &toml::Value
-) -> Result<Box<Plugin>> {
-    let plugin_key = parse_plugin_key(plugin_type.as_bytes()).to_full_result()?;
-
-    let key = (plugin_key.plugin_kind.clone(), plugin_key.plugin_type.clone());
-
-    let entry: &Entry = plugins
-        .get(&key)
-        .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
-
-    entry(&plugin_key, section.clone())
+enum LoadedPlugin {
+    Input(Box<Input>)
 }
 
 fn load_section(
     plugins: &PluginRegistry,
     section: toml::Value
-) -> Result<Box<Plugin>> {
+) -> Result<LoadedPlugin> {
     let plugin_type: String = toml::decode(section.clone())
         .and_then(|value: toml::Table| {
             value.get("type").map(Clone::clone).and_then(toml::decode)
         })
         .ok_or(ErrorKind::TomlDecode)?;
 
-    load_instance(plugins, &plugin_type, &section)
+    let plugin_key = parse_plugin_key(plugin_type.as_bytes()).to_full_result()?;
+
+    let ref plugin_type = plugin_key.plugin_type;
+
+    match plugin_key.plugin_kind {
+        PluginKind::Input => {
+            let entry: &InputEntry = plugins
+                .get_input(plugin_type)
+                .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
+
+            entry(&plugin_key, section.clone()).map(LoadedPlugin::Input)
+        }
+        _ => {
+            Err(ErrorKind::Message("unsupported kind".to_owned()).into())
+        }
+    }
 }
 
 fn load_config(
     path: &String, plugins: &PluginRegistry
-) -> Result<Vec<Box<Plugin>>>
+) -> Result<Vec<LoadedPlugin>>
 {
     let mut file = fs::File::open(path)?;
 
@@ -90,17 +95,17 @@ fn print_usage(program: &str, plugins: &PluginRegistry, opts: Options) {
 
     println!("Plugins:");
 
-    for (&(ref kind, ref name), _) in plugins {
-        println!("  {:?}:{}", kind, name);
+    for plugin_type in plugins.input_types() {
+        println!("  input/{}", plugin_type);
     }
 }
 
 fn load_configs(
     configs: &Vec<String>,
     plugins: &PluginRegistry
-) -> Result<Vec<Box<Plugin>>>
+) -> Result<Vec<LoadedPlugin>>
 {
-    let mut loaded: Vec<Box<Plugin>> = Vec::new();
+    let mut loaded: Vec<LoadedPlugin> = Vec::new();
 
     for config in configs {
         info!("loading: {}", config);
@@ -160,18 +165,22 @@ fn run() -> Result<()> {
         cpupool: Rc::new(pool)
     };
 
-    let mut instances = Vec::new();
+    let mut input = Vec::new();
 
-    for plugin in loaded {
-        instances.push(plugin.setup(&framework)?);
+    for l in loaded {
+        match l {
+            LoadedPlugin::Input(plugin) => {
+                input.push(plugin.setup(&framework)?);
+            }
+        }
     }
 
     let poll_duration = Duration::new(5, 0);
     let update_duration = Duration::new(1, 0);
 
-    let borrowed = Arc::new(instances);
-    let polling = schedule(timer.clone(), poll_duration, Poller::new(borrowed.clone()));
-    let updating = schedule(timer.clone(), update_duration, Updater::new(borrowed.clone()));
+    let borroed_input = Arc::new(input);
+    let polling = schedule(timer.clone(), poll_duration, Poller::new(borroed_input.clone()));
+    let updating = schedule(timer.clone(), update_duration, Updater::new(borroed_input.clone()));
 
     info!("Started!");
 
