@@ -11,7 +11,7 @@ const WINDOW: [f64; 3] = [1f64, 5f64, 15f64];
 pub struct MeterSnapshot {
     count: i64,
     rates: [f64; 3],
-    mean: f64
+    mean: f64,
 }
 
 #[derive(Debug)]
@@ -20,23 +20,33 @@ pub struct Meter {
     rates: [f64; 3],
     mean: f64,
     ewma: Vec<ewma::EWMA>,
-    start: Timespec
+    start: Timespec,
 }
 
 impl Meter {
     pub fn new() -> Meter {
         let ewma = vec![ewma::EWMA::new(1f64), ewma::EWMA::new(5f64), ewma::EWMA::new(15f64)];
-        Meter { count: 0i64, rates: [0f64, 0f64, 0f64], mean: 0f64, ewma: ewma, start: get_time() }
+        Meter {
+            count: 0i64,
+            rates: [0f64, 0f64, 0f64],
+            mean: 0f64,
+            ewma: ewma,
+            start: get_time(),
+        }
     }
 
     fn snapshot(&self) -> MeterSnapshot {
-        MeterSnapshot { count: self.count, rates: self.rates, mean: self.mean }
+        MeterSnapshot {
+            count: self.count,
+            rates: self.rates,
+            mean: self.mean,
+        }
     }
 
     fn mark(&mut self, n: i64) {
         self.count += n;
 
-        for i in 0 .. self.ewma.len() {
+        for i in 0..self.ewma.len() {
             self.ewma[i].update(n as usize);
         }
 
@@ -44,7 +54,7 @@ impl Meter {
     }
 
     fn tick(&mut self) {
-        for i in 0 .. self.ewma.len() {
+        for i in 0..self.ewma.len() {
             self.ewma[i].tick();
         }
 
@@ -70,7 +80,7 @@ impl Meter {
     }
 
     fn update_snapshot(&mut self) {
-        for i in 0 .. WINDOW.len() {
+        for i in 0..WINDOW.len() {
             self.rates[i] = self.ewma[i].rate();
         }
 

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Debug)]
 pub struct Gauge {
-    value: AtomicU64
+    value: AtomicU64,
 }
 
 impl Gauge {

@@ -4,12 +4,12 @@ use toml;
 
 #[derive(Deserialize, Debug)]
 struct HttpInputConfig {
-    target: String
+    target: String,
 }
 
 #[derive(Debug)]
 struct HttpInput {
-    config: HttpInputConfig
+    config: HttpInputConfig,
 }
 
 impl HttpInput {
@@ -30,12 +30,11 @@ struct HttpInputInstance {
 
 impl HttpInputInstance {
     pub fn new() -> HttpInputInstance {
-        return HttpInputInstance {  };
+        return HttpInputInstance {};
     }
 }
 
-impl InputInstance for HttpInputInstance {
-}
+impl InputInstance for HttpInputInstance {}
 
 pub fn input(_: &PluginKey, config: toml::Value) -> Result<Box<Input>> {
     let c: HttpInputConfig = toml::decode(config).ok_or(ErrorKind::Setup)?;

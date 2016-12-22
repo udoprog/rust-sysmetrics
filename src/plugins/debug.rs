@@ -24,7 +24,7 @@ struct DebugOutputInstance {
 
 impl DebugOutputInstance {
     pub fn new() -> DebugOutputInstance {
-        DebugOutputInstance {  }
+        DebugOutputInstance {}
     }
 }
 

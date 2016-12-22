@@ -4,7 +4,7 @@ extern crate num;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Counter {
-    pub value: i64
+    pub value: i64,
 }
 
 impl Counter {

@@ -6,26 +6,38 @@ use std::sync::Arc;
 #[derive(Debug, PartialEq, Eq)]
 pub struct MetricId {
     key: Option<String>,
-    tags: Arc<HashMap<String, String>>
+    tags: Arc<HashMap<String, String>>,
 }
 
 impl MetricId {
     pub fn new() -> MetricId {
-        MetricId { key: None, tags: Arc::new(HashMap::new()) }
+        MetricId {
+            key: None,
+            tags: Arc::new(HashMap::new()),
+        }
     }
 
     pub fn new_with_key(key: &str) -> MetricId {
-        MetricId { key: Some(key.to_owned()), tags: Arc::new(HashMap::new()) }
+        MetricId {
+            key: Some(key.to_owned()),
+            tags: Arc::new(HashMap::new()),
+        }
     }
 
     pub fn key(&self, key: &str) -> MetricId {
-        MetricId { key: Some(key.to_owned()), tags: self.tags.clone() }
+        MetricId {
+            key: Some(key.to_owned()),
+            tags: self.tags.clone(),
+        }
     }
 
     pub fn tag(&self, key: &str, value: &str) -> MetricId {
         let mut new_tags = (*self.tags).clone();
         new_tags.insert(key.to_owned(), value.to_owned());
-        MetricId { key: self.key.clone(), tags: Arc::new(new_tags) }
+        MetricId {
+            key: self.key.clone(),
+            tags: Arc::new(new_tags),
+        }
     }
 }
 

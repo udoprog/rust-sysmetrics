@@ -24,12 +24,11 @@ struct LoadInputInstance {
 
 impl LoadInputInstance {
     pub fn new() -> LoadInputInstance {
-        LoadInputInstance {  }
+        LoadInputInstance {}
     }
 }
 
-impl InputInstance for LoadInputInstance {
-}
+impl InputInstance for LoadInputInstance {}
 
 pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
     Ok(Box::new(LoadInput::new()))

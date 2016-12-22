@@ -8,7 +8,7 @@ struct DiskInput {
 
 impl DiskInput {
     pub fn new() -> DiskInput {
-        DiskInput { }
+        DiskInput {}
     }
 }
 
@@ -28,8 +28,7 @@ impl DiskInputInstance {
     }
 }
 
-impl InputInstance for DiskInputInstance {
-}
+impl InputInstance for DiskInputInstance {}
 
 pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
     Ok(Box::new(DiskInput::new()))
