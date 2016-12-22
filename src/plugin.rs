@@ -13,7 +13,7 @@ use toml;
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy, Clone)]
 pub enum PluginKind {
     Input,
-    Output
+    Output,
 }
 
 impl fmt::Display for PluginKind {
@@ -29,7 +29,7 @@ impl fmt::Display for PluginKind {
 #[derive(PartialEq, Debug, Clone)]
 pub struct PluginKey {
     pub plugin_kind: PluginKind,
-    pub plugin_type: String
+    pub plugin_type: String,
 }
 
 impl fmt::Display for PluginKey {
@@ -47,13 +47,12 @@ pub struct PluginRegistry {
 }
 
 impl PluginRegistry {
-    pub fn new(
-        input: HashMap<String, InputEntry>,
-        output: HashMap<String, OutputEntry>
-    ) -> PluginRegistry {
+    pub fn new(input: HashMap<String, InputEntry>,
+               output: HashMap<String, OutputEntry>)
+               -> PluginRegistry {
         PluginRegistry {
             input: input,
-            output: output
+            output: output,
         }
     }
 
@@ -78,22 +77,25 @@ impl PluginRegistry {
 #[derive(Debug)]
 pub struct Sample {
     metric_id: Arc<MetricId>,
-    value: f64
+    value: f64,
 }
 
 impl Sample {
     pub fn new(metric_id: Arc<MetricId>, value: f64) -> Sample {
-        Sample { metric_id: metric_id, value: value }
+        Sample {
+            metric_id: metric_id,
+            value: value,
+        }
     }
 }
 
 pub type Samples = Vec<Sample>;
 
 pub struct PluginFramework {
-    pub cpupool: Rc<CpuPool>
+    pub cpupool: Arc<CpuPool>,
 }
 
-pub trait InputInstance: fmt::Debug {
+pub trait InputInstance: fmt::Debug + Send + Sync {
     /// Poll the state of the plugin instance.
     ///
     /// This is completely independent of the update cycle.
@@ -117,14 +119,14 @@ pub trait InputInstance: fmt::Debug {
     }
 }
 
-pub trait OutputInstance: fmt::Debug {
+pub trait OutputInstance: fmt::Debug + Send + Sync {
     fn feed(&self, sample: &Sample);
 }
 
-pub trait Input: fmt::Debug  {
+pub trait Input: fmt::Debug {
     fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>>;
 }
 
-pub trait Output: fmt::Debug  {
+pub trait Output: fmt::Debug {
     fn setup(&self, framework: &PluginFramework) -> Result<Box<OutputInstance>>;
 }

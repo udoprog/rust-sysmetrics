@@ -1,5 +1,6 @@
 use tokio_timer::TimerError;
 
+use futures;
 use std::io;
 use std::sync;
 use log;
@@ -71,7 +72,7 @@ error_chain! {
     }
 }
 
-impl <T> From<sync::PoisonError<T>> for Error {
+impl<T> From<sync::PoisonError<T>> for Error {
     fn from(err: sync::PoisonError<T>) -> Error {
         ErrorKind::Poison(err.to_string()).into()
     }
@@ -80,12 +81,8 @@ impl <T> From<sync::PoisonError<T>> for Error {
 impl From<nom::IError> for Error {
     fn from(err: nom::IError) -> Error {
         match err {
-            nom::IError::Error(err) => {
-                ErrorKind::Nom(err.to_string()).into()
-            },
-            nom::IError::Incomplete(_) => {
-                ErrorKind::Nom("input incomplete".to_owned()).into()
-            }
+            nom::IError::Error(err) => ErrorKind::Nom(err.to_string()).into(),
+            nom::IError::Incomplete(_) => ErrorKind::Nom("input incomplete".to_owned()).into(),
         }
     }
 }

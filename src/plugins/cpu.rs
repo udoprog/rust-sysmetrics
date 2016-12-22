@@ -35,7 +35,7 @@ impl Input for Cpu {
 struct Metrics {
     previous: Option<StatCpu>,
     used: (Arc<MetricId>, Gauge),
-    free: (Arc<MetricId>, Gauge)
+    free: (Arc<MetricId>, Gauge),
 }
 
 impl Metrics {
@@ -49,9 +49,7 @@ impl Metrics {
         let next = parse_stat_cpu(buffer.as_bytes()).to_full_result()?;
 
         self.previous = match self.previous {
-            None => {
-                Some(next)
-            }
+            None => Some(next),
             Some(ref prev) => {
                 let total_diff = next.total() - prev.total();
 
@@ -72,8 +70,8 @@ impl Metrics {
 
 struct CpuInputInstance {
     metrics: Arc<Mutex<Metrics>>,
-    cpupool: Rc<CpuPool>,
-    next_update: Duration
+    cpupool: Arc<CpuPool>,
+    next_update: Duration,
 }
 
 impl fmt::Debug for CpuInputInstance {
@@ -83,15 +81,15 @@ impl fmt::Debug for CpuInputInstance {
 }
 
 impl CpuInputInstance {
-    pub fn new(cpupool: Rc<CpuPool>) -> CpuInputInstance {
+    pub fn new(cpupool: Arc<CpuPool>) -> CpuInputInstance {
         CpuInputInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
                 previous: None,
                 used: (Arc::new(key("cpu-used-percentage").tag("unit", "%")), Gauge::new()),
-                free: (Arc::new(key("cpu-free-percentage").tag("unit", "%")), Gauge::new())
+                free: (Arc::new(key("cpu-free-percentage").tag("unit", "%")), Gauge::new()),
             })),
-            cpupool: cpupool
+            cpupool: cpupool,
         }
     }
 }
@@ -100,10 +98,8 @@ impl InputInstance for CpuInputInstance {
     fn poll(&self) -> Result<Samples> {
         let ref mut m = self.metrics.lock()?;
 
-        let results = vec![
-            Sample::new(m.free.0.clone(), m.free.1.snapshot()),
-            Sample::new(m.used.0.clone(), m.used.1.snapshot())
-        ];
+        let results = vec![Sample::new(m.free.0.clone(), m.free.1.snapshot()),
+                           Sample::new(m.used.0.clone(), m.used.1.snapshot())];
 
         Ok(results)
     }
@@ -111,13 +107,15 @@ impl InputInstance for CpuInputInstance {
     fn update(&self) -> BoxFuture<(), Error> {
         let m = self.metrics.clone();
 
-        self.cpupool.spawn(future::lazy(move || {
-            let result: Result<()> = m.lock()
-                .map_err(Into::into)
-                .and_then(|mut locked| locked.update());
+        self.cpupool
+            .spawn(future::lazy(move || {
+                let result: Result<()> = m.lock()
+                    .map_err(Into::into)
+                    .and_then(|mut locked| locked.update());
 
-            future::result(result)
-        })).boxed()
+                future::result(result)
+            }))
+            .boxed()
     }
 
     fn next_update(&self) -> Duration {
@@ -134,6 +132,5 @@ mod test {
     use super::*;
 
     #[test]
-    fn snapshot() {
-    }
+    fn snapshot() {}
 }

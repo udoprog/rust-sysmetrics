@@ -23,25 +23,22 @@ use getopts::Options;
 use std::env;
 use std::fs;
 use std::io::Read;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_timer::Timer;
+use std::thread;
 
 enum LoadedPlugin {
     Input(Box<Input>),
     Output(Box<Output>),
 }
 
-fn load_section(
-    plugins: &PluginRegistry,
-    section: toml::Value
-) -> Result<LoadedPlugin> {
-    let plugin_type: String = toml::decode(section.clone())
-        .and_then(|value: toml::Table| {
-            value.get("type").map(Clone::clone).and_then(toml::decode)
-        })
-        .ok_or(ErrorKind::TomlDecode)?;
+fn load_section(plugins: &PluginRegistry, section: toml::Value) -> Result<LoadedPlugin> {
+    let plugin_type: String =
+        toml::decode(section.clone()).and_then(|value: toml::Table| {
+                value.get("type").map(Clone::clone).and_then(toml::decode)
+            })
+            .ok_or(ErrorKind::TomlDecode)?;
 
     let plugin_key = parse_plugin_key(plugin_type.as_bytes()).to_full_result()?;
 
@@ -49,15 +46,13 @@ fn load_section(
 
     match plugin_key.plugin_kind {
         PluginKind::Input => {
-            let entry: &InputEntry = plugins
-                .get_input(plugin_type)
+            let entry: &InputEntry = plugins.get_input(plugin_type)
                 .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
 
             entry(&plugin_key, section.clone()).map(LoadedPlugin::Input)
         }
         PluginKind::Output => {
-            let entry: &OutputEntry = plugins
-                .get_output(plugin_type)
+            let entry: &OutputEntry = plugins.get_output(plugin_type)
                 .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
 
             entry(&plugin_key, section.clone()).map(LoadedPlugin::Output)
@@ -65,10 +60,7 @@ fn load_section(
     }
 }
 
-fn load_config(
-    path: &String, plugins: &PluginRegistry
-) -> Result<Vec<LoadedPlugin>>
-{
+fn load_config(path: &String, plugins: &PluginRegistry) -> Result<Vec<LoadedPlugin>> {
     let mut file = fs::File::open(path)?;
 
     let mut content = String::new();
@@ -78,9 +70,7 @@ fn load_config(
 
     let config = match parser.parse() {
         Some(value) => value,
-        None => {
-            return Err(ErrorKind::TomlParse(parser.errors).into())
-        }
+        None => return Err(ErrorKind::TomlParse(parser.errors).into()),
     };
 
     let mut instances = Vec::new();
@@ -109,11 +99,7 @@ fn print_usage(program: &str, plugins: &PluginRegistry, opts: Options) {
     }
 }
 
-fn load_configs(
-    configs: &Vec<String>,
-    plugins: &PluginRegistry
-) -> Result<Vec<LoadedPlugin>>
-{
+fn load_configs(configs: &Vec<String>, plugins: &PluginRegistry) -> Result<Vec<LoadedPlugin>> {
     let mut loaded: Vec<LoadedPlugin> = Vec::new();
 
     for config in configs {
@@ -127,53 +113,9 @@ fn load_configs(
     Ok(loaded)
 }
 
-fn run() -> Result<()> {
-    let mut opts = Options::new();
-
-    opts.optflag("h", "help", "print this help");
-    opts.optflag("", "debug", "enable debug logging");
-    opts.optmulti("", "config", "load configuration file", "<file>");
-
-    #[cfg(feature = "watch")]
-    opts.optflag("w", "watch", "enable watching of the configuration directory");
-
-    let args: Vec<String> = env::args().collect();
-    let program = args[0].clone();
-
-    let plugins: PluginRegistry = sysmon::plugins::load_plugins();
-
-    let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => {
-            print_usage(&program, &plugins, opts);
-            return Err(ErrorKind::Message(f.to_string()).into())
-        }
-    };
-
-    if matches.opt_present("h") {
-        print_usage(&program, &plugins, opts);
-        return Ok(())
-    }
-
-    let level: log::LogLevelFilter = match matches.opt_present("debug") {
-        true => log::LogLevelFilter::Debug,
-        false => log::LogLevelFilter::Info,
-    };
-
-    logger::init(level)?;
-
-    let configs = matches.opt_strs("config");
-
-    let loaded = load_configs(&configs, &plugins)?;
-
-    let pool = Rc::new(CpuPool::new(4));
-
-    let timer = Rc::new(Timer::default());
-
-    let framework = PluginFramework {
-        cpupool: pool.clone()
-    };
-
+fn setup_plugins(loaded: Vec<LoadedPlugin>,
+                 framework: &PluginFramework)
+                 -> Result<(Arc<Vec<Box<InputInstance>>>, Arc<Vec<Box<OutputInstance>>>)> {
     let mut input = Vec::new();
     let mut output = Vec::new();
 
@@ -188,25 +130,79 @@ fn run() -> Result<()> {
         }
     }
 
-    let poll_duration = Duration::new(0, 10_000_000);
+    Ok((Arc::new(input), Arc::new(output)))
+}
+
+fn run() -> Result<()> {
+    let mut opts = Options::new();
+
+    opts.optflag("h", "help", "print this help");
+    opts.optflag("", "debug", "enable debug logging");
+    opts.optmulti("", "config", "load configuration file", "<file>");
+
+    #[cfg(feature = "watch")]
+    opts.optflag("w",
+                 "watch",
+                 "enable watching of the configuration directory");
+
+    let args: Vec<String> = env::args().collect();
+    let program = args[0].clone();
+
+    let plugins: PluginRegistry = sysmon::plugins::load_plugins();
+
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m) => m,
+        Err(f) => {
+            print_usage(&program, &plugins, opts);
+            return Err(ErrorKind::Message(f.to_string()).into());
+        }
+    };
+
+    if matches.opt_present("h") {
+        print_usage(&program, &plugins, opts);
+        return Ok(());
+    }
+
+    let level: log::LogLevelFilter = match matches.opt_present("debug") {
+        true => log::LogLevelFilter::Debug,
+        false => log::LogLevelFilter::Info,
+    };
+
+    logger::init(level)?;
+
+    let configs = matches.opt_strs("config");
+
+    let loaded = load_configs(&configs, &plugins)?;
+
+    let pool = Arc::new(CpuPool::new(4));
+
+    let _timer = Arc::new(Timer::default());
+
+    let framework = PluginFramework { cpupool: pool.clone() };
+
+    let (input, output) = setup_plugins(loaded, &framework)?;
+
     let update_duration = Duration::new(1, 0);
+    let poll_duration = Duration::new(2, 0);
 
-    let i = Arc::new(input);
-    let o = Arc::new(output);
-    let poller = Poller::new(i.clone(), o.clone());
-    let updater = Updater::new(i.clone());
-
-    let scheduler = Scheduler::new(pool.clone(), timer.clone());
-
-    scheduler.schedule(poll_duration, poller);
-    scheduler.schedule(update_duration, updater);
+    let poller = Poller::new(input.clone(), output.clone());
+    let updater = Updater::new(input.clone());
 
     info!("Started!");
 
+    thread::spawn(move || {
+        loop {
+            thread::sleep(poll_duration);
+            let _ = poller.run().wait();
+        }
+    });
+
+    loop {
+        let _ = updater.run().wait();
+        thread::sleep(update_duration);
+    }
+
     info!("Shutting down!");
-
-    let _ = polling.join(updating).wait();
-
     Ok(())
 }
 
@@ -224,7 +220,7 @@ fn main() {
             }
 
             ::std::process::exit(1);
-        },
+        }
         Ok(loaded) => loaded,
     }
 

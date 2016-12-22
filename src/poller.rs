@@ -10,28 +10,28 @@ pub struct Poller {
 }
 
 impl Poller {
-    pub fn new(
-        input: Arc<Vec<Box<InputInstance>>>,
-        output: Arc<Vec<Box<OutputInstance>>>
-    ) -> Poller {
-        Poller {input: input, output: output}
+    pub fn new(input: Arc<Vec<Box<InputInstance>>>,
+               output: Arc<Vec<Box<OutputInstance>>>)
+               -> Poller {
+        Poller {
+            input: input,
+            output: output,
+        }
     }
 }
 
 impl Runnable for Poller {
     fn run(&self) -> BoxFuture<(), Error> {
-        let mut samples: Vec<Sample> = Vec::new();
-
         for instance in self.input.iter() {
-            match instance.poll() {
+            let samples = match instance.poll() {
                 Err(err) => return future::err(err).boxed(),
-                Ok(s) => samples.extend(s),
-            }
-        }
+                Ok(s) => s,
+            };
 
-        for sample in samples {
-            for instance in self.output.iter() {
-                instance.feed(&sample);
+            for sample in samples {
+                for instance in self.output.iter() {
+                    instance.feed(&sample);
+                }
             }
         }
 
@@ -44,4 +44,3 @@ impl Drop for Poller {
         info!("Goodbye Poller");
     }
 }
-

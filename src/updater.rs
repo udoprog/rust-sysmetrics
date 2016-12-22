@@ -5,12 +5,12 @@ use futures::*;
 use std::sync::Arc;
 
 pub struct Updater {
-    instances: Arc<Vec<Box<InputInstance>>>
+    instances: Arc<Vec<Box<InputInstance>>>,
 }
 
 impl Updater {
     pub fn new(instances: Arc<Vec<Box<InputInstance>>>) -> Updater {
-        Updater {instances: instances}
+        Updater { instances: instances }
     }
 }
 
@@ -26,4 +26,3 @@ impl Drop for Updater {
         info!("Goodbye Updater");
     }
 }
-
