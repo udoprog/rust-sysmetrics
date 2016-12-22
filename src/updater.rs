@@ -2,6 +2,7 @@ use ::errors::*;
 use ::plugin::*;
 use ::scheduler::Runnable;
 use futures::*;
+use futures_cpupool::CpuPool;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -13,10 +14,11 @@ struct InputInstanceState {
 
 pub struct Updater {
     states: Vec<InputInstanceState>,
+    pool: Arc<CpuPool>,
 }
 
 impl Updater {
-    pub fn new(input: &Vec<Arc<Box<InputInstance>>>) -> Updater {
+    pub fn new(input: &Vec<Arc<Box<InputInstance>>>, pool: Arc<CpuPool>) -> Updater {
         let states: Vec<_> = input.into_iter()
             .map(|input| {
                 InputInstanceState {
@@ -26,7 +28,10 @@ impl Updater {
             })
             .collect();
 
-        Updater { states: states }
+        Updater {
+            states: states,
+            pool: pool,
+        }
     }
 }
 
@@ -41,13 +46,18 @@ impl Runnable for Updater {
 
                 match should_update {
                     true => {
-                        Box::new(state.instance.update().map(move |_| {
-                            in_progress.store(false, Ordering::Relaxed);
-                            ()
-                        }))
+                        self.pool
+                            .spawn(state.instance.update().map(move |_| {
+                                in_progress.store(false, Ordering::Relaxed);
+                                ()
+                            }))
+                            .forget();
+
+                        future::ok(()).boxed()
                     }
                     false => {
                         info!("Update already in progress for: {:?}", state.instance);
+
                         future::ok(()).boxed()
                     }
                 }

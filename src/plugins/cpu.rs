@@ -8,7 +8,6 @@ use futures_cpupool::*;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -82,12 +81,18 @@ impl fmt::Debug for CpuInputInstance {
 
 impl CpuInputInstance {
     pub fn new(cpupool: Arc<CpuPool>) -> CpuInputInstance {
+        let system = key("system");
+
         CpuInputInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
                 previous: None,
-                used: (Arc::new(key("cpu-used-percentage").tag("unit", "%")), Gauge::new()),
-                free: (Arc::new(key("cpu-free-percentage").tag("unit", "%")), Gauge::new()),
+                used: (Arc::new(system.tags(&[("what", "cpu-used"), ("unit", "%")])
+                           .meaning(&["what"])),
+                       Gauge::new()),
+                free: (Arc::new(system.tags(&[("what", "cpu-free"), ("unit", "%")])
+                           .meaning(&["what"])),
+                       Gauge::new()),
             })),
             cpupool: cpupool,
         }
@@ -107,15 +112,13 @@ impl InputInstance for CpuInputInstance {
     fn update(&self) -> BoxFuture<(), Error> {
         let m = self.metrics.clone();
 
-        self.cpupool
-            .spawn(future::lazy(move || {
-                let result: Result<()> = m.lock()
-                    .map_err(Into::into)
-                    .and_then(|mut locked| locked.update());
+        Box::new(future::lazy(move || {
+            let result: Result<()> = m.lock()
+                .map_err(Into::into)
+                .and_then(|mut locked| locked.update());
 
-                future::result(result)
-            }))
-            .boxed()
+            future::result(result)
+        }))
     }
 
     fn next_update(&self) -> Duration {

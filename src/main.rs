@@ -186,7 +186,7 @@ fn run() -> Result<()> {
     let poll_duration = Duration::new(2, 0);
 
     let poller = Poller::new(&input, output.clone());
-    let updater = Updater::new(&input);
+    let updater = Updater::new(&input, pool.clone());
 
     info!("Started!");
 
