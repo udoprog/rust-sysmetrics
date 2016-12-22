@@ -115,14 +115,14 @@ fn load_configs(configs: &Vec<String>, plugins: &PluginRegistry) -> Result<Vec<L
 
 fn setup_plugins(loaded: Vec<LoadedPlugin>,
                  framework: &PluginFramework)
-                 -> Result<(Arc<Vec<Box<InputInstance>>>, Arc<Vec<Box<OutputInstance>>>)> {
+                 -> Result<(Vec<Arc<Box<InputInstance>>>, Arc<Vec<Box<OutputInstance>>>)> {
     let mut input = Vec::new();
     let mut output = Vec::new();
 
     for l in loaded {
         match l {
             LoadedPlugin::Input(plugin) => {
-                input.push(plugin.setup(&framework)?);
+                input.push(Arc::new(plugin.setup(&framework)?));
             }
             LoadedPlugin::Output(plugin) => {
                 output.push(plugin.setup(&framework)?);
@@ -130,7 +130,7 @@ fn setup_plugins(loaded: Vec<LoadedPlugin>,
         }
     }
 
-    Ok((Arc::new(input), Arc::new(output)))
+    Ok((input, Arc::new(output)))
 }
 
 fn run() -> Result<()> {
@@ -185,8 +185,8 @@ fn run() -> Result<()> {
     let update_duration = Duration::new(1, 0);
     let poll_duration = Duration::new(2, 0);
 
-    let poller = Poller::new(input.clone(), output.clone());
-    let updater = Updater::new(input.clone());
+    let poller = Poller::new(&input, output.clone());
+    let updater = Updater::new(&input);
 
     info!("Started!");
 

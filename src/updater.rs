@@ -3,20 +3,57 @@ use ::plugin::*;
 use ::scheduler::Runnable;
 use futures::*;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+struct InputInstanceState {
+    /// Only permit one update at a time.
+    in_progress: Arc<AtomicBool>,
+    instance: Arc<Box<InputInstance>>,
+}
 
 pub struct Updater {
-    instances: Arc<Vec<Box<InputInstance>>>,
+    states: Vec<InputInstanceState>,
 }
 
 impl Updater {
-    pub fn new(instances: Arc<Vec<Box<InputInstance>>>) -> Updater {
-        Updater { instances: instances }
+    pub fn new(input: &Vec<Arc<Box<InputInstance>>>) -> Updater {
+        let states: Vec<_> = input.into_iter()
+            .map(|input| {
+                InputInstanceState {
+                    in_progress: Arc::new(AtomicBool::new(false)),
+                    instance: input.clone(),
+                }
+            })
+            .collect();
+
+        Updater { states: states }
     }
 }
 
 impl Runnable for Updater {
     fn run(&self) -> BoxFuture<(), Error> {
-        let futures: Vec<_> = self.instances.iter().map(|b| b.update()).collect();
+        let futures: Vec<_> = self.states
+            .iter()
+            .map(|state| {
+                let in_progress = state.in_progress.clone();
+                let should_update = in_progress.compare_and_swap(false, true, Ordering::Relaxed) ==
+                                    false;
+
+                match should_update {
+                    true => {
+                        Box::new(state.instance.update().map(move |_| {
+                            in_progress.store(false, Ordering::Relaxed);
+                            ()
+                        }))
+                    }
+                    false => {
+                        info!("Update already in progress for: {:?}", state.instance);
+                        future::ok(()).boxed()
+                    }
+                }
+            })
+            .collect();
+
         future::join_all(futures).map(|_| ()).boxed()
     }
 }

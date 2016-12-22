@@ -4,7 +4,6 @@ use futures_cpupool::CpuPool;
 use metric::MetricId;
 use std::collections::HashMap;
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use toml;
