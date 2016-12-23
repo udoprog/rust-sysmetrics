@@ -46,14 +46,11 @@ impl Runnable for Updater {
 
                 match should_update {
                     true => {
-                        self.pool
+                        Box::new(self.pool
                             .spawn(state.instance.update().map(move |_| {
                                 in_progress.store(false, Ordering::Relaxed);
                                 ()
-                            }))
-                            .forget();
-
-                        future::ok(()).boxed()
+                            })))
                     }
                     false => {
                         info!("Update already in progress for: {:?}", state.instance);

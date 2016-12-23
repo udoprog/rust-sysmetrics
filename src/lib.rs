@@ -19,6 +19,7 @@ extern crate toml;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tokio_timer;
+extern crate tokio_core;
 
 #[macro_use]
 extern crate serde_derive;

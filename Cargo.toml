@@ -12,8 +12,9 @@ num = "*"
 serde = "0.8.20"
 serde_derive = "0.8.20"
 time = "*"
-futures = { git = "https://github.com/alexcrichton/futures-rs" }
-futures-cpupool = { git = "https://github.com/alexcrichton/futures-rs" }
+futures = "*"
+futures-cpupool = "*"
+tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
 tokio-timer = { git = "https://github.com/tokio-rs/tokio-timer" }
 nom = "^2.0"
 error-chain = "^0.7"

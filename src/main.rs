@@ -1,9 +1,12 @@
+#![feature(box_syntax, box_patterns)]
+
 extern crate sysmon;
 extern crate toml;
 extern crate getopts;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate tokio_timer;
+extern crate tokio_core;
 #[macro_use]
 extern crate log;
 #[cfg(features = "watch")]
@@ -18,6 +21,7 @@ use sysmon::scheduler::*;
 use sysmon::updater::Updater;
 
 use futures::*;
+use futures::stream::Stream;
 use futures_cpupool::CpuPool;
 use getopts::Options;
 use std::env;
@@ -26,6 +30,7 @@ use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_timer::Timer;
+use tokio_core::reactor::*;
 use std::thread;
 
 enum LoadedPlugin {
@@ -182,25 +187,27 @@ fn run() -> Result<()> {
 
     let (input, output) = setup_plugins(loaded, &framework)?;
 
-    let update_duration = Duration::new(1, 0);
-    let poll_duration = Duration::new(2, 0);
-
     let poller = Poller::new(&input, output.clone());
     let updater = Updater::new(&input, pool.clone());
 
+    let update_duration = Duration::new(1, 0);
+    let poll_duration = Duration::new(10, 0);
+
+    let mut core = Core::new()?;
+    let handle = core.handle();
+
+    let update_interval = Interval::new(update_duration, &handle)?.map_err(Into::into);
+    let poll_interval = Interval::new(poll_duration, &handle)?.map_err(Into::into);
+
+    let update = update_interval.and_then(|_| updater.run());
+    let poll = poll_interval.and_then(|_| poller.run());
+
+    // consume both streams
+    let combo = poll.merge(update).for_each(|_| Ok(()));
+
     info!("Started!");
 
-    thread::spawn(move || {
-        loop {
-            thread::sleep(poll_duration);
-            let _ = poller.run().wait();
-        }
-    });
-
-    loop {
-        let _ = updater.run().wait();
-        thread::sleep(update_duration);
-    }
+    core.run(combo);
 
     info!("Shutting down!");
     Ok(())
