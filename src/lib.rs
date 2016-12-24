@@ -12,6 +12,7 @@ extern crate error_chain;
 #[macro_use]
 extern crate nom;
 
+extern crate getopts;
 extern crate histogram;
 extern crate num;
 extern crate time;

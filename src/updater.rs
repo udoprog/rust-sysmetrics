@@ -67,6 +67,6 @@ impl Runnable for Updater {
 
 impl Drop for Updater {
     fn drop(&mut self) {
-        info!("Goodbye Updater");
+        info!("Dropping Updater");
     }
 }

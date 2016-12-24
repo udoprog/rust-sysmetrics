@@ -14,8 +14,9 @@ serde_derive = "0.8.20"
 time = "*"
 futures = "*"
 futures-cpupool = "*"
-tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
+tokio-core = "0.1.2"
 tokio-timer = { git = "https://github.com/tokio-rs/tokio-timer" }
+tokio-signal = "*"
 nom = "^2.0"
 error-chain = "^0.7"
 

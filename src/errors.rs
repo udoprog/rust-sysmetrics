@@ -1,11 +1,11 @@
 use tokio_timer::TimerError;
 
-use futures;
 use std::io;
 use std::sync;
 use log;
 use nom;
 use toml;
+use getopts;
 use ::plugin::PluginKey;
 
 error_chain! {
@@ -13,6 +13,7 @@ error_chain! {
         Timer(TimerError);
         IO(io::Error);
         SetLogger(log::SetLoggerError);
+        Getopts(getopts::Fail);
     }
 
     errors {
@@ -59,6 +60,11 @@ error_chain! {
         Nom(info: String) {
             description("nom error")
             display("nom error: {}", info)
+        }
+
+        ShutdownError {
+            description("shutdown")
+            display("shutdown")
         }
 
         Poll {

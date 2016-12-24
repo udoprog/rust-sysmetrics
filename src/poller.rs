@@ -41,6 +41,6 @@ impl Runnable for Poller {
 
 impl Drop for Poller {
     fn drop(&mut self) {
-        info!("Goodbye Poller");
+        info!("Dropping Poller");
     }
 }
