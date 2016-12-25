@@ -9,3 +9,6 @@ type = "disk"
 
 [out."debug print"]
 type = "debug"
+
+[out."snoop"]
+type = "snoop"
