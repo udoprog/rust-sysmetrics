@@ -1,4 +1,4 @@
-#![feature(box_syntax, box_patterns)]
+#![feature(proc_macro)]
 
 extern crate sysmon;
 extern crate toml;
@@ -11,10 +11,11 @@ extern crate tokio_signal;
 extern crate log;
 #[cfg(features = "watch")]
 extern crate notify;
+extern crate serde;
 
+use sysmon::config::*;
 use sysmon::errors::*;
 use sysmon::logger;
-use sysmon::parsers::*;
 use sysmon::plugin::*;
 use sysmon::poller::Poller;
 use sysmon::scheduler::*;
@@ -24,67 +25,9 @@ use futures::*;
 use futures::stream::Stream;
 use futures_cpupool::CpuPool;
 use std::env;
-use std::fs;
-use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_core::reactor::*;
-
-enum LoadedPlugin {
-    Input(Box<Input>),
-    Output(Box<Output>),
-}
-
-fn load_section(plugins: &PluginRegistry, section: toml::Value) -> Result<LoadedPlugin> {
-    let plugin_type: String =
-        toml::decode(section.clone()).and_then(|value: toml::Table| {
-                value.get("type").map(Clone::clone).and_then(toml::decode)
-            })
-            .ok_or(ErrorKind::TomlDecode)?;
-
-    let plugin_key = parse_plugin_key(plugin_type.as_bytes()).to_full_result()?;
-
-    let ref plugin_type = plugin_key.plugin_type;
-
-    match plugin_key.plugin_kind {
-        PluginKind::Input => {
-            let entry: &InputEntry = plugins.get_input(plugin_type)
-                .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
-
-            entry(&plugin_key, section.clone()).map(LoadedPlugin::Input)
-        }
-        PluginKind::Output => {
-            let entry: &OutputEntry = plugins.get_output(plugin_type)
-                .ok_or(ErrorKind::MissingPlugin(plugin_key.clone()))?;
-
-            entry(&plugin_key, section.clone()).map(LoadedPlugin::Output)
-        }
-    }
-}
-
-fn load_config(path: &String, plugins: &PluginRegistry) -> Result<Vec<LoadedPlugin>> {
-    let mut file = fs::File::open(path)?;
-
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-
-    let mut parser = toml::Parser::new(&mut content);
-
-    let config = match parser.parse() {
-        Some(value) => value,
-        None => return Err(ErrorKind::TomlParse(parser.errors).into()),
-    };
-
-    let mut instances = Vec::new();
-
-    for (section_key, section) in config.into_iter() {
-        instances.push(load_section(plugins, section).chain_err(|| {
-            ErrorKind::ConfigSection(section_key)
-        })?);
-    }
-
-    Ok(instances)
-}
 
 fn print_usage(program: &str, plugins: &PluginRegistry, opts: getopts::Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -101,38 +44,37 @@ fn print_usage(program: &str, plugins: &PluginRegistry, opts: getopts::Options) 
     }
 }
 
-fn load_configs(configs: Vec<String>, plugins: &PluginRegistry) -> Result<Vec<LoadedPlugin>> {
-    let mut loaded: Vec<LoadedPlugin> = Vec::new();
+fn load_configs(paths: Vec<String>) -> Result<(Config, Vec<Box<PluginSetup>>)> {
+    let mut setups = Vec::new();
 
-    for config in configs.iter() {
-        info!("loading: {}", config);
+    let mut config = Config::new();
 
-        loaded.extend(load_config(config, plugins).chain_err(|| {
-            ErrorKind::Config(config.clone())
-        })?);
+    for path in paths.iter() {
+        info!("loading: {}", path);
+        setups.push(load_config(&mut config, path)?);
     }
 
-    Ok(loaded)
+    Ok((config, setups))
 }
 
-fn setup_plugins(loaded: Vec<LoadedPlugin>,
-                 framework: &PluginFramework)
-                 -> Result<(Vec<Arc<Box<InputInstance>>>, Arc<Vec<Box<OutputInstance>>>)> {
-    let mut input = Vec::new();
-    let mut output = Vec::new();
+fn setup_plugins(
+    setups: Vec<Box<PluginSetup>>,
+    config: &Config,
+    plugins: &PluginRegistry,
+    framework: &PluginFramework
+) -> Result<(Arc<Vec<Arc<Box<InputInstance>>>>, Arc<Vec<Box<OutputInstance>>>)>
+{
+    let mut inputs: Vec<Arc<Box<InputInstance>>> = Vec::new();
+    let mut outputs: Vec<Box<OutputInstance>> = Vec::new();
 
-    for l in loaded {
-        match l {
-            LoadedPlugin::Input(plugin) => {
-                input.push(Arc::new(plugin.setup(&framework)?));
-            }
-            LoadedPlugin::Output(plugin) => {
-                output.push(plugin.setup(&framework)?);
-            }
-        }
+    for setup in setups {
+        let (input, output) = setup(&config, plugins, framework)?;
+
+        inputs.extend(input);
+        outputs.extend(output);
     }
 
-    Ok((input, Arc::new(output)))
+    Ok((Arc::new(inputs), Arc::new(outputs)))
 }
 
 fn setup_opts() -> getopts::Options {
@@ -188,14 +130,15 @@ fn run() -> Result<()> {
 
     setup_logger(&matches)?;
 
-    let pool = Arc::new(CpuPool::new(4));
+    let (config, setups) = load_configs(matches.opt_strs("config"))?;
+
+    let pool = Arc::new(CpuPool::new(config.threads()));
     let framework = PluginFramework { cpupool: pool.clone() };
 
-    let loaded = load_configs(matches.opt_strs("config"), &plugins)?;
-    let (input, output) = setup_plugins(loaded, &framework)?;
+    let (input, output) = setup_plugins(setups, &config, &plugins, &framework)?;
 
-    let poller = Poller::new(&input, output.clone());
-    let updater = Updater::new(&input, pool.clone());
+    let poller = Poller::new(input.clone(), output.clone());
+    let updater = Updater::new(input.clone(), pool.clone());
 
     let update_duration = Duration::new(1, 0);
     let poll_duration = Duration::new(10, 0);
@@ -211,23 +154,24 @@ fn run() -> Result<()> {
 
     let ctrl_c = core.run(::tokio_signal::ctrl_c(&handle))?;
 
-    let shutdown: BoxFuture<(), Error> = box ctrl_c.map_err(Into::into).for_each(|_| {
+    let shutdown: BoxFuture<(), Error> = ctrl_c.map_err(Into::into).for_each(|_| {
         info!("Interrupted");
-        Err(ErrorKind::ShutdownError.into())
-    });
+        Err(ErrorKind::Shutdown.into())
+    }).boxed();
 
     let mut futures: Vec<BoxFuture<(), Error>> = Vec::new();
-    futures.push(box update.for_each(|_| Ok(())));
-    futures.push(box poll.for_each(|_| Ok(())));
+    futures.push(update.for_each(|_| Ok(())).boxed());
+    futures.push(poll.for_each(|_| Ok(())).boxed());
 
-    let tasks: BoxFuture<(), Error> = box future::join_all(futures).map(|_| ());
+    let tasks: BoxFuture<(), Error> = future::join_all(futures).map(|_| ()).boxed();
     let combo = future::select_all(vec![tasks, shutdown]);
 
     info!("Started!");
 
     match core.run(combo) {
-        Ok(_) => {
-            println!("Everything is GREAT");
+        Err((Error(ErrorKind::Shutdown, ..), ..)) => {
+        }
+        Ok(..) => {
         }
         Err(e) => {
             let (error, _size, _futures) = e;
@@ -242,9 +186,6 @@ fn run() -> Result<()> {
 
 fn main() {
     match run() {
-        Err(Error(ErrorKind::ShutdownError, _)) => {
-            info!("Shutting down");
-        }
         Err(e) => {
             error!("{}", e);
 
@@ -258,8 +199,8 @@ fn main() {
 
             ::std::process::exit(1);
         }
-        Ok(loaded) => loaded,
-    }
+        _ => {}
+    };
 
     ::std::process::exit(0);
 }

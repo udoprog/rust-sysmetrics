@@ -8,37 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use toml;
 
-/// The kind of the plugin being configured.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy, Clone)]
-pub enum PluginKind {
-    Input,
-    Output,
-}
-
-impl fmt::Display for PluginKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            PluginKind::Input => write!(f, "input"),
-            PluginKind::Output => write!(f, "output"),
-        }
-    }
-}
-
-/// The key of the plugin being configured.
-#[derive(PartialEq, Debug, Clone)]
-pub struct PluginKey {
-    pub plugin_kind: PluginKind,
-    pub plugin_type: String,
-}
-
-impl fmt::Display for PluginKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}/{}", self.plugin_kind, self.plugin_type)
-    }
-}
-
-pub type InputEntry = fn(key: &PluginKey, toml::Value) -> Result<Box<Input>>;
-pub type OutputEntry = fn(key: &PluginKey, toml::Value) -> Result<Box<Output>>;
+pub type InputEntry = fn(&toml::Table) -> Result<Box<Input>>;
+pub type OutputEntry = fn(&toml::Table) -> Result<Box<Output>>;
 
 pub struct PluginRegistry {
     input: HashMap<String, InputEntry>,

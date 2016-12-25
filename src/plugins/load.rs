@@ -30,6 +30,6 @@ impl LoadInputInstance {
 
 impl InputInstance for LoadInputInstance {}
 
-pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
+pub fn input(_config: &toml::Table) -> Result<Box<Input>> {
     Ok(Box::new(LoadInput::new()))
 }

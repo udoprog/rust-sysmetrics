@@ -34,6 +34,6 @@ impl OutputInstance for DebugOutputInstance {
     }
 }
 
-pub fn output(_: &PluginKey, _: toml::Value) -> Result<Box<Output>> {
+pub fn output(_config: &toml::Table) -> Result<Box<Output>> {
     Ok(Box::new(DebugOutput::new()))
 }

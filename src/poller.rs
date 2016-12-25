@@ -5,16 +5,16 @@ use futures::*;
 use std::sync::Arc;
 
 pub struct Poller {
-    input: Vec<Arc<Box<InputInstance>>>,
+    input: Arc<Vec<Arc<Box<InputInstance>>>>,
     output: Arc<Vec<Box<OutputInstance>>>,
 }
 
 impl Poller {
-    pub fn new(input: &Vec<Arc<Box<InputInstance>>>,
+    pub fn new(input: Arc<Vec<Arc<Box<InputInstance>>>>,
                output: Arc<Vec<Box<OutputInstance>>>)
                -> Poller {
         Poller {
-            input: input.iter().map(Clone::clone).collect(),
+            input: input,
             output: output,
         }
     }

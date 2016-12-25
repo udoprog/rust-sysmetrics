@@ -1,25 +1,8 @@
-use ::plugin::{PluginKind, PluginKey};
 use std::str::{self, FromStr};
 use nom::{line_ending, space, digit, alphanumeric};
 
 named!(pub type_u64<u64>,
        map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
-
-named!(pub type_alphanumeric<String>,
-       map!(map_res!(alphanumeric, str::from_utf8), ToOwned::to_owned));
-
-named!(parse_plugin_kind<PluginKind>,
-       alt!(tag!("input") => { |_| PluginKind::Input } |
-            tag!("output") => { |_| PluginKind::Output }));
-
-named!(
-    pub parse_plugin_key<PluginKey>,
-    do_parse!(
-        plugin_kind: parse_plugin_kind >>
-        plugin_type: preceded!(tag!("/"), type_alphanumeric) >>
-        (PluginKey {
-            plugin_kind: plugin_kind,
-            plugin_type: plugin_type }) ));
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StatCpu {
@@ -90,19 +73,6 @@ named!(pub parse_stat_cpu<StatCpu>,
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_plugin_kind() {
-        assert_eq!(PluginKind::Read, parse_plugin_kind(b"read").to_full_result().unwrap());
-        assert_eq!(PluginKind::Write, parse_plugin_kind(b"write").to_full_result().unwrap());
-    }
-
-    #[test]
-    fn test_plugin_key2() {
-        let k2 = parse_plugin_key(b"read/foo").to_full_result().unwrap();
-        assert_eq!(PluginKind::Read, k2.plugin_kind);
-        assert_eq!("foo", k2.plugin_type);
-    }
 
     #[test]
     fn test_parse_loadavg() {

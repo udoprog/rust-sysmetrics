@@ -1,8 +1,11 @@
-[cpu]
-type = "input/cpu"
+threads = 2
+threads_per_cpu = false
 
-[disk]
-type = "input/disk"
+[in.cpu]
+type = "cpu"
 
-[out]
-type = "output/debug"
+[in.disk]
+type = "disk"
+
+[out."debug print"]
+type = "debug"

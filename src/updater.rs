@@ -18,12 +18,12 @@ pub struct Updater {
 }
 
 impl Updater {
-    pub fn new(input: &Vec<Arc<Box<InputInstance>>>, pool: Arc<CpuPool>) -> Updater {
-        let states: Vec<_> = input.into_iter()
-            .map(|input| {
+    pub fn new(input: Arc<Vec<Arc<Box<InputInstance>>>>, pool: Arc<CpuPool>) -> Updater {
+        let states: Vec<_> = input.iter()
+            .map(|i| {
                 InputInstanceState {
                     in_progress: Arc::new(AtomicBool::new(false)),
-                    instance: input.clone(),
+                    instance: i.clone(),
                 }
             })
             .collect();

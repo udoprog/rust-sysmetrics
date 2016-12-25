@@ -36,7 +36,8 @@ impl HttpInputInstance {
 
 impl InputInstance for HttpInputInstance {}
 
-pub fn input(_: &PluginKey, config: toml::Value) -> Result<Box<Input>> {
-    let c: HttpInputConfig = toml::decode(config).ok_or(ErrorKind::Setup)?;
+pub fn input(config: &toml::Table) -> Result<Box<Input>> {
+    let c: HttpInputConfig =
+        toml::decode(toml::Value::Table(config.clone())).ok_or(ErrorKind::Setup)?;
     Ok(Box::new(HttpInput::new(c)))
 }

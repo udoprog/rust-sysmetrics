@@ -4,7 +4,6 @@ use ::errors::*;
 use ::parsers::*;
 
 use futures::*;
-use futures_cpupool::*;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
@@ -24,8 +23,8 @@ impl Cpu {
 }
 
 impl Input for Cpu {
-    fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>> {
-        let instance = CpuInputInstance::new(framework.cpupool.clone());
+    fn setup(&self, _framework: &PluginFramework) -> Result<Box<InputInstance>> {
+        let instance = CpuInputInstance::new();
 
         Ok(Box::new(instance))
     }
@@ -69,7 +68,6 @@ impl Metrics {
 
 struct CpuInputInstance {
     metrics: Arc<Mutex<Metrics>>,
-    cpupool: Arc<CpuPool>,
     next_update: Duration,
 }
 
@@ -80,7 +78,7 @@ impl fmt::Debug for CpuInputInstance {
 }
 
 impl CpuInputInstance {
-    pub fn new(cpupool: Arc<CpuPool>) -> CpuInputInstance {
+    pub fn new() -> CpuInputInstance {
         let system = key("system");
 
         CpuInputInstance {
@@ -94,7 +92,6 @@ impl CpuInputInstance {
                            .meaning(&["what"])),
                        Gauge::new()),
             })),
-            cpupool: cpupool,
         }
     }
 }
@@ -126,7 +123,7 @@ impl InputInstance for CpuInputInstance {
     }
 }
 
-pub fn input(_: &PluginKey, _: toml::Value) -> Result<Box<Input>> {
+pub fn input(_config: &toml::Table) -> Result<Box<Input>> {
     Ok(Box::new(Cpu::new()))
 }
 

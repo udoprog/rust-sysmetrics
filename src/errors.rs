@@ -6,7 +6,6 @@ use log;
 use nom;
 use toml;
 use getopts;
-use ::plugin::PluginKey;
 
 error_chain! {
     foreign_links {
@@ -52,9 +51,19 @@ error_chain! {
             display("error in section: {}", section)
         }
 
-        MissingPlugin(key: PluginKey) {
+        ConfigField(field: String, reason: String) {
+            description("error in field")
+            display("error in field: {}: {}", field, reason)
+        }
+
+        MissingPlugin(key: String) {
             description("no such plugin")
             display("no such plugin: {}", key)
+        }
+
+        MissingField(name: String) {
+            description("missing field")
+            display("missing field: {}", name)
         }
 
         Nom(info: String) {
@@ -62,7 +71,7 @@ error_chain! {
             display("nom error: {}", info)
         }
 
-        ShutdownError {
+        Shutdown {
             description("shutdown")
             display("shutdown")
         }
@@ -89,6 +98,16 @@ impl From<nom::IError> for Error {
         match err {
             nom::IError::Error(err) => ErrorKind::Nom(err.to_string()).into(),
             nom::IError::Incomplete(_) => ErrorKind::Nom("input incomplete".to_owned()).into(),
+        }
+    }
+}
+
+impl From<toml::DecodeError> for Error {
+    fn from(err: toml::DecodeError) -> Error {
+        if let Some(ref field) = err.field {
+            ErrorKind::ConfigField(field.clone(), format!("{}", err)).into()
+        } else {
+            ErrorKind::Message(format!("{}", err)).into()
         }
     }
 }
