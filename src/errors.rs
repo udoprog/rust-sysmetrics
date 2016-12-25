@@ -6,6 +6,7 @@ use log;
 use nom;
 use toml;
 use getopts;
+use std::cell;
 
 error_chain! {
     foreign_links {
@@ -13,6 +14,7 @@ error_chain! {
         IO(io::Error);
         SetLogger(log::SetLoggerError);
         Getopts(getopts::Fail);
+        BorrowMut(cell::BorrowMutError);
     }
 
     errors {

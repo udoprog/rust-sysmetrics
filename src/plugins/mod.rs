@@ -4,6 +4,7 @@ mod load;
 #[cfg(feature = "http")]
 mod http_poller;
 mod debug;
+mod snoop;
 
 use ::plugin::*;
 use std::collections::HashMap;
@@ -21,6 +22,7 @@ pub fn load_plugins() -> PluginRegistry {
     let mut output: HashMap<String, OutputEntry> = HashMap::new();
 
     output.insert("debug".to_owned(), debug::output);
+    output.insert("snoop".to_owned(), snoop::output);
 
     PluginRegistry::new(input, output)
 }

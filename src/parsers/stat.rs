@@ -1,8 +1,6 @@
-use std::str::{self, FromStr};
-use nom::{line_ending, space, digit, alphanumeric};
+use nom::{line_ending, space};
 
-named!(pub type_u64<u64>,
-       map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
+use ::parsers::common::*;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StatCpu {

@@ -5,11 +5,15 @@ use metric::MetricId;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
 use toml;
+use serde;
+use tokio_core;
 
-pub type InputEntry = fn(&str, &toml::Table) -> Result<Box<Input>>;
-pub type OutputEntry = fn(&str, &toml::Table) -> Result<Box<Output>>;
+pub type InputEntry = fn() -> Result<Box<Input>>;
+pub type OutputEntry = fn() -> Result<Box<Output>>;
 
 pub struct PluginRegistry {
     input: HashMap<String, InputEntry>,
@@ -61,10 +65,6 @@ impl Sample {
 
 pub type Samples = Vec<Sample>;
 
-pub struct PluginFramework {
-    pub cpupool: Arc<CpuPool>,
-}
-
 pub trait InputInstance: fmt::Debug + Send + Sync {
     /// Poll the state of the plugin instance.
     ///
@@ -93,10 +93,26 @@ pub trait OutputInstance: fmt::Debug + Send + Sync {
     fn feed(&self, sample: &Sample);
 }
 
+/// Context used for when setting up a plugin.
+pub struct PluginContext<'a> {
+    pub id: &'a String,
+    pub config: &'a toml::Value,
+    pub cpupool: Arc<CpuPool>,
+    pub core: Rc<RefCell<tokio_core::reactor::Core>>,
+}
+
+impl<'a> PluginContext<'a> {
+    pub fn decode_config<T>(&self) -> Result<T>
+        where T: serde::Deserialize
+    {
+        toml::decode(self.config.clone()).ok_or(ErrorKind::Setup.into())
+    }
+}
+
 pub trait Input: fmt::Debug {
-    fn setup(&self, framework: &PluginFramework) -> Result<Box<InputInstance>>;
+    fn setup(&self, ctx: PluginContext) -> Result<Box<InputInstance>>;
 }
 
 pub trait Output: fmt::Debug {
-    fn setup(&self, framework: &PluginFramework) -> Result<Box<OutputInstance>>;
+    fn setup(&self, ctx: PluginContext) -> Result<Box<OutputInstance>>;
 }

@@ -24,7 +24,9 @@ use sysmon::updater::Updater;
 use futures::*;
 use futures::stream::Stream;
 use futures_cpupool::CpuPool;
+use std::cell::RefCell;
 use std::env;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_core::reactor::*;
@@ -61,14 +63,14 @@ fn setup_plugins(
     setups: Vec<Box<PluginSetup>>,
     config: &Config,
     plugins: &PluginRegistry,
-    framework: &PluginFramework
+    partial_context: &PartialPluginContext
 ) -> Result<(Arc<Vec<Arc<Box<InputInstance>>>>, Arc<Vec<Box<OutputInstance>>>)>
 {
     let mut inputs: Vec<Arc<Box<InputInstance>>> = Vec::new();
     let mut outputs: Vec<Box<OutputInstance>> = Vec::new();
 
     for setup in setups {
-        let (input, output) = setup(&config, plugins, framework)?;
+        let (input, output) = setup(&config, plugins, partial_context)?;
 
         inputs.extend(input);
         outputs.extend(output);
@@ -132,22 +134,23 @@ fn run() -> Result<()> {
 
     let (config, setups) = load_configs(matches.opt_strs("config"))?;
 
-    let pool = Arc::new(CpuPool::new(config.threads()));
-    let framework = PluginFramework { cpupool: pool.clone() };
+    let cpupool = Arc::new(CpuPool::new(config.threads()));
+    let core = Rc::new(RefCell::new(Core::new()?));
 
-    let (input, output) = setup_plugins(setups, &config, &plugins, &framework)?;
+    let (input, output) = {
+        let partial_context = PartialPluginContext::new(cpupool.clone(), core.clone());
+        setup_plugins(setups, &config, &plugins, &partial_context)?
+    };
 
     let poller = Poller::new(input.clone(), output.clone());
-    let updater = Updater::new(input.clone(), pool.clone());
+    let updater = Updater::new(input.clone(), cpupool.clone());
 
-    let update_duration = Duration::new(1, 0);
-    let poll_duration = Duration::new(10, 0);
+    let ref mut core = core.try_borrow_mut()?;
 
-    let mut core = Core::new()?;
     let handle = core.handle();
 
-    let update_interval = Interval::new(update_duration, &handle)?.map_err(Into::into);
-    let poll_interval = Interval::new(poll_duration, &handle)?.map_err(Into::into);
+    let update_interval = Interval::new(config.update_interval, &handle)?.map_err(Into::into);
+    let poll_interval = Interval::new(config.poll_interval, &handle)?.map_err(Into::into);
 
     let update = update_interval.and_then(move |_| updater.run());
     let poll = poll_interval.and_then(move |_| poller.run());

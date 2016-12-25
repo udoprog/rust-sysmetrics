@@ -1,6 +1,5 @@
 use ::errors::*;
 use ::plugin::*;
-use toml;
 
 #[derive(Deserialize, Debug)]
 struct HttpInputConfig {
@@ -9,17 +8,11 @@ struct HttpInputConfig {
 
 #[derive(Debug)]
 struct HttpInput {
-    config: HttpInputConfig,
-}
-
-impl HttpInput {
-    pub fn new(c: HttpInputConfig) -> HttpInput {
-        return HttpInput { config: c };
-    }
 }
 
 impl Input for HttpInput {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<InputInstance>> {
+    fn setup(&self, ctx: PluginContext) -> Result<Box<InputInstance>> {
+        let _c: HttpInputConfig = ctx.decode_config()?;
         Ok(Box::new(HttpInputInstance::new()))
     }
 }
@@ -36,8 +29,6 @@ impl HttpInputInstance {
 
 impl InputInstance for HttpInputInstance {}
 
-pub fn input(_id: &str, config: &toml::Table) -> Result<Box<Input>> {
-    let c: HttpInputConfig =
-        toml::decode(toml::Value::Table(config.clone())).ok_or(ErrorKind::Setup)?;
-    Ok(Box::new(HttpInput::new(c)))
+pub fn input() -> Result<Box<Input>> {
+    Ok(Box::new(HttpInput {}))
 }

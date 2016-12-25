@@ -1,6 +1,5 @@
 use ::errors::*;
 use ::plugin::*;
-use toml;
 
 #[derive(Debug)]
 struct DiskInput {
@@ -13,7 +12,7 @@ impl DiskInput {
 }
 
 impl Input for DiskInput {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<InputInstance>> {
+    fn setup(&self, _ctx: PluginContext) -> Result<Box<InputInstance>> {
         Ok(Box::new(DiskInputInstance::new()))
     }
 }
@@ -30,6 +29,6 @@ impl DiskInputInstance {
 
 impl InputInstance for DiskInputInstance {}
 
-pub fn input(_id: &str, _config: &toml::Table) -> Result<Box<Input>> {
+pub fn input() -> Result<Box<Input>> {
     Ok(Box::new(DiskInput::new()))
 }

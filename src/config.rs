@@ -2,33 +2,73 @@ use serde;
 use ::plugin::*;
 use ::errors::*;
 use std::sync::Arc;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::fs;
 use std::io::Read;
 use toml;
 use num_cpus;
+use futures_cpupool::*;
+use tokio_core;
+use std::time::Duration;
 
 pub struct Config {
     /// Number of threads to configure in thread pool.
     threads: usize,
     /// If the threads option is per cpu or not.
     threads_per_cpu: bool,
+    /// Interval at which to perform updates.
+    pub update_interval: Duration,
+    /// Interval at which to perform polling.
+    pub poll_interval: Duration,
 }
 
 /// Model used to parse configuration file.
+/// Same as Config, but with optional fields to allow leaving them unspecified.
 #[derive(Deserialize, Debug)]
 pub struct ConfigIn {
     threads: Option<usize>,
     threads_per_cpu: Option<bool>,
+    update_interval: Option<Duration>,
+    poll_interval: Option<Duration>,
 }
 
-pub type PluginSetup = Fn(&Config, &PluginRegistry, &PluginFramework)
+pub struct PartialPluginContext {
+    cpupool: Arc<CpuPool>,
+    core: Rc<RefCell<tokio_core::reactor::Core>>,
+}
+
+impl PartialPluginContext {
+    pub fn new(cpupool: Arc<CpuPool>,
+               core: Rc<RefCell<tokio_core::reactor::Core>>)
+               -> PartialPluginContext {
+        PartialPluginContext {
+            cpupool: cpupool,
+            core: core,
+        }
+    }
+
+    fn build<'a>(&self, id: &'a String, config: &'a toml::Value) -> PluginContext<'a> {
+        PluginContext {
+            id: id,
+            config: config,
+            cpupool: self.cpupool.clone(),
+            core: self.core.clone(),
+        }
+    }
+}
+
+pub type PluginSetup = Fn(&Config, &PluginRegistry, &PartialPluginContext)
                           -> Result<(Vec<Arc<Box<InputInstance>>>, Vec<Box<OutputInstance>>)>;
 
 impl Config {
     pub fn new() -> Config {
+        // defaults
         Config {
             threads: 4,
             threads_per_cpu: false,
+            update_interval: Duration::new(1, 0),
+            poll_interval: Duration::new(10, 0),
         }
     }
 
@@ -46,9 +86,9 @@ fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
                                                        load: Load,
                                                        setup: Setup)
                                                        -> Result<Instance>
-    where Entry: Fn(&str, &toml::Table) -> Result<Plugin>,
+    where Entry: Fn() -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin) -> Result<Instance>
+          Setup: Fn(Plugin, &String) -> Result<Instance>
 {
     let plugin_table: toml::Table = toml::decode(plugin_section).ok_or(ErrorKind::TomlDecode)?;
 
@@ -59,18 +99,18 @@ fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
 
     let entry = load(&plugin_type).ok_or(ErrorKind::MissingPlugin(plugin_type))?;
 
-    let plugin = entry(id, &plugin_table)?;
+    let plugin = entry()?;
 
-    setup(plugin)
+    setup(plugin, id)
 }
 
 fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
                                                       load: Load,
                                                       setup: Setup)
                                                       -> Result<Vec<Instance>>
-    where Entry: Fn(&str, &toml::Table) -> Result<Plugin>,
+    where Entry: Fn() -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin) -> Result<Instance>
+          Setup: Fn(Plugin, &String) -> Result<Instance>
 {
     let mut values: Vec<Instance> = Vec::new();
 
@@ -83,6 +123,17 @@ fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
     }
 
     Ok(values)
+}
+
+/// Read optional fields from input configuration.
+macro_rules! read_config {
+    ( $config:ident, $config_in:ident, [$($field:ident),*] ) => {
+    $(
+        if let Some($field) = $config_in.$field {
+            $config.$field = $field;
+        }
+    )*
+    };
 }
 
 pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup>> {
@@ -113,43 +164,41 @@ pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup
         config.threads = threads;
     }
 
-    if let Some(threads_per_cpu) = config_in.threads_per_cpu {
-        config.threads_per_cpu = threads_per_cpu
-    }
+    read_config!(config,
+                 config_in,
+                 [threads_per_cpu, update_interval, poll_interval]);
 
-    let mut input_sections = Vec::new();
-    let mut output_sections = Vec::new();
+    let mut input_configs = Vec::new();
+    let mut output_configs = Vec::new();
 
     if let Some(i) = root.get("in") {
-        input_sections.push(i.clone());
+        input_configs.push(i.clone());
     }
 
     if let Some(o) = root.get("out") {
-        output_sections.push(o.clone());
+        output_configs.push(o.clone());
     }
 
-    Ok(Box::new(move |_config, plugins, framework| {
+    Ok(Box::new(move |_config, plugins, partial_context| {
         let mut inputs: Vec<Arc<Box<InputInstance>>> = Vec::new();
         let mut outputs: Vec<Box<OutputInstance>> = Vec::new();
 
-        for i in input_sections.iter() {
-            let loaded = load_section(
-                &i,
-                |plugin_type| plugins.get_input(plugin_type),
-                |plugin| plugin.setup(framework).map(Arc::new)).chain_err(|| {
-                ErrorKind::ConfigSection("in".to_owned())
-            })?;
+        for i in input_configs.iter() {
+            let loaded = load_section(&i,
+                                      |plugin_type| plugins.get_input(plugin_type),
+                                      |plugin, id| {
+                                          plugin.setup(partial_context.build(id, &i)).map(Arc::new)
+                                      }).chain_err(|| ErrorKind::ConfigSection("in".to_owned()))?;
 
             inputs.extend(loaded);
         }
 
-        for o in output_sections.iter() {
-            let loaded = load_section(
-                &o,
-                |plugin_type| plugins.get_output(plugin_type),
-                |plugin| plugin.setup(framework)).chain_err(|| {
-                ErrorKind::ConfigSection("out".to_owned())
-            })?;
+        for o in output_configs.iter() {
+            let loaded = load_section(&o,
+                                      |plugin_type| plugins.get_output(plugin_type),
+                                      |plugin, id| {
+                                          plugin.setup(partial_context.build(id, &o))
+                                      }).chain_err(|| ErrorKind::ConfigSection("out".to_owned()))?;
 
             outputs.extend(loaded);
         }

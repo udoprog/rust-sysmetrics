@@ -112,8 +112,8 @@ mod tests {
     #[test]
     fn test_metric_id() {
         let m = MetricId::new();
-        let m2 = m.tags("host", "foobar");
-        let m3 = m.tags("host", "foobar");
+        let m2 = m.tags(&[("host", "foobar")]);
+        let m3 = m.tags(&[("host", "foobar")]);
 
         assert!(m != m2, "m = {}, m2 = {}", m, m2);
         assert!(m3 == m2, "m3 = {}, m2 = {}", m3, m2);

@@ -1,21 +1,13 @@
 use ::errors::*;
 use ::plugin::*;
-use toml;
 
 #[derive(Debug)]
 struct DebugOutput {
-    id: String,
-}
-
-impl DebugOutput {
-    pub fn new(id: String) -> DebugOutput {
-        DebugOutput { id: id }
-    }
 }
 
 impl Output for DebugOutput {
-    fn setup(&self, _: &PluginFramework) -> Result<Box<OutputInstance>> {
-        Ok(Box::new(DebugOutputInstance::new(self.id.clone())))
+    fn setup(&self, ctx: PluginContext) -> Result<Box<OutputInstance>> {
+        Ok(Box::new(DebugOutputInstance::new(ctx.id.clone())))
     }
 }
 
@@ -37,6 +29,6 @@ impl OutputInstance for DebugOutputInstance {
     }
 }
 
-pub fn output(id: &str, _config: &toml::Table) -> Result<Box<Output>> {
-    Ok(Box::new(DebugOutput::new(id.to_owned())))
+pub fn output() -> Result<Box<Output>> {
+    Ok(Box::new(DebugOutput {}))
 }

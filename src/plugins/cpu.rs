@@ -1,7 +1,7 @@
 use ::metric::*;
 use ::plugin::*;
 use ::errors::*;
-use ::parsers::*;
+use ::parsers::stat::*;
 
 use futures::*;
 use std::fmt;
@@ -10,7 +10,6 @@ use std::io::{BufReader, BufRead};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use toml;
 
 #[derive(Debug)]
 struct Cpu {
@@ -23,10 +22,8 @@ impl Cpu {
 }
 
 impl Input for Cpu {
-    fn setup(&self, _framework: &PluginFramework) -> Result<Box<InputInstance>> {
-        let instance = CpuInputInstance::new();
-
-        Ok(Box::new(instance))
+    fn setup(&self, _ctx: PluginContext) -> Result<Box<InputInstance>> {
+        Ok(Box::new(CpuInputInstance::new()))
     }
 }
 
@@ -123,7 +120,7 @@ impl InputInstance for CpuInputInstance {
     }
 }
 
-pub fn input(_id: &str, _config: &toml::Table) -> Result<Box<Input>> {
+pub fn input() -> Result<Box<Input>> {
     Ok(Box::new(Cpu::new()))
 }
 
