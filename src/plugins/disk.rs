@@ -30,6 +30,6 @@ impl DiskInputInstance {
 
 impl InputInstance for DiskInputInstance {}
 
-pub fn input(_config: &toml::Table) -> Result<Box<Input>> {
+pub fn input(_id: &str, _config: &toml::Table) -> Result<Box<Input>> {
     Ok(Box::new(DiskInput::new()))
 }

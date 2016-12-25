@@ -41,11 +41,12 @@ impl Config {
     }
 }
 
-fn load_instance<Entry, Instance, Load, Plugin, Setup>(plugin_section: toml::Value,
+fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
+                                                       plugin_section: toml::Value,
                                                        load: Load,
                                                        setup: Setup)
                                                        -> Result<Instance>
-    where Entry: Fn(&toml::Table) -> Result<Plugin>,
+    where Entry: Fn(&str, &toml::Table) -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
           Setup: Fn(Plugin) -> Result<Instance>
 {
@@ -58,7 +59,7 @@ fn load_instance<Entry, Instance, Load, Plugin, Setup>(plugin_section: toml::Val
 
     let entry = load(&plugin_type).ok_or(ErrorKind::MissingPlugin(plugin_type))?;
 
-    let plugin = entry(&plugin_table)?;
+    let plugin = entry(id, &plugin_table)?;
 
     setup(plugin)
 }
@@ -67,7 +68,7 @@ fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
                                                       load: Load,
                                                       setup: Setup)
                                                       -> Result<Vec<Instance>>
-    where Entry: Fn(&toml::Table) -> Result<Plugin>,
+    where Entry: Fn(&str, &toml::Table) -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
           Setup: Fn(Plugin) -> Result<Instance>
 {
@@ -75,9 +76,9 @@ fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
 
     let table: toml::Table = toml::decode(section.clone()).ok_or(ErrorKind::TomlDecode)?;
 
-    for (_id, plugin_section) in table {
-        values.push(load_instance(plugin_section.clone(), &load, &setup).chain_err(|| {
-            ErrorKind::ConfigSection(_id)
+    for (id, plugin_section) in table {
+        values.push(load_instance(&id, plugin_section.clone(), &load, &setup).chain_err(|| {
+            ErrorKind::ConfigSection(id)
         })?);
     }
 

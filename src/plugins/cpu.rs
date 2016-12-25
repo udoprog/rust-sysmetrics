@@ -123,7 +123,7 @@ impl InputInstance for CpuInputInstance {
     }
 }
 
-pub fn input(_config: &toml::Table) -> Result<Box<Input>> {
+pub fn input(_id: &str, _config: &toml::Table) -> Result<Box<Input>> {
     Ok(Box::new(Cpu::new()))
 }
 

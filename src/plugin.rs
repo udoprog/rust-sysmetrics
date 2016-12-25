@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use toml;
 
-pub type InputEntry = fn(&toml::Table) -> Result<Box<Input>>;
-pub type OutputEntry = fn(&toml::Table) -> Result<Box<Output>>;
+pub type InputEntry = fn(&str, &toml::Table) -> Result<Box<Input>>;
+pub type OutputEntry = fn(&str, &toml::Table) -> Result<Box<Output>>;
 
 pub struct PluginRegistry {
     input: HashMap<String, InputEntry>,
@@ -46,8 +46,8 @@ impl PluginRegistry {
 /// A single data sample.
 #[derive(Debug)]
 pub struct Sample {
-    metric_id: Arc<MetricId>,
-    value: f64,
+    pub metric_id: Arc<MetricId>,
+    pub value: f64,
 }
 
 impl Sample {
