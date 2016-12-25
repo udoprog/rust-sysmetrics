@@ -96,7 +96,7 @@ pub trait OutputInstance: fmt::Debug + Send + Sync {
 /// Context used for when setting up a plugin.
 pub struct PluginContext<'a> {
     pub id: &'a String,
-    pub config: &'a toml::Value,
+    pub config: &'a toml::Table,
     pub cpupool: Arc<CpuPool>,
     pub core: Rc<RefCell<tokio_core::reactor::Core>>,
 }
@@ -105,7 +105,8 @@ impl<'a> PluginContext<'a> {
     pub fn decode_config<T>(&self) -> Result<T>
         where T: serde::Deserialize
     {
-        toml::decode(self.config.clone()).ok_or(ErrorKind::Setup.into())
+        let mut decoder = toml::Decoder::new(toml::Value::Table(self.config.clone()));
+        serde::Deserialize::deserialize(&mut decoder).map_err(Into::into)
     }
 }
 

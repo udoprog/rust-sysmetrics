@@ -48,7 +48,7 @@ impl PartialPluginContext {
         }
     }
 
-    fn build<'a>(&self, id: &'a String, config: &'a toml::Value) -> PluginContext<'a> {
+    fn build<'a>(&self, id: &'a String, config: &'a toml::Table) -> PluginContext<'a> {
         PluginContext {
             id: id,
             config: config,
@@ -88,7 +88,7 @@ fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
                                                        -> Result<Instance>
     where Entry: Fn() -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin, &String) -> Result<Instance>
+          Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>
 {
     let plugin_table: toml::Table = toml::decode(plugin_section).ok_or(ErrorKind::TomlDecode)?;
 
@@ -101,7 +101,7 @@ fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
 
     let plugin = entry()?;
 
-    setup(plugin, id)
+    setup(plugin, id, &plugin_table)
 }
 
 fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
@@ -110,7 +110,7 @@ fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
                                                       -> Result<Vec<Instance>>
     where Entry: Fn() -> Result<Plugin>,
           Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin, &String) -> Result<Instance>
+          Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>
 {
     let mut values: Vec<Instance> = Vec::new();
 
@@ -186,8 +186,9 @@ pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup
         for i in input_configs.iter() {
             let loaded = load_section(&i,
                                       |plugin_type| plugins.get_input(plugin_type),
-                                      |plugin, id| {
-                                          plugin.setup(partial_context.build(id, &i)).map(Arc::new)
+                                      |plugin, id, config| {
+                                          plugin.setup(partial_context.build(id, config))
+                                              .map(Arc::new)
                                       }).chain_err(|| ErrorKind::ConfigSection("in".to_owned()))?;
 
             inputs.extend(loaded);
@@ -196,8 +197,8 @@ pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup
         for o in output_configs.iter() {
             let loaded = load_section(&o,
                                       |plugin_type| plugins.get_output(plugin_type),
-                                      |plugin, id| {
-                                          plugin.setup(partial_context.build(id, &o))
+                                      |plugin, id, config| {
+                                          plugin.setup(partial_context.build(id, config))
                                       }).chain_err(|| ErrorKind::ConfigSection("out".to_owned()))?;
 
             outputs.extend(loaded);

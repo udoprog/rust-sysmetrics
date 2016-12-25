@@ -12,3 +12,4 @@ type = "debug"
 
 [out."snoop"]
 type = "snoop"
+bind = "127.0.0.1:1234"
