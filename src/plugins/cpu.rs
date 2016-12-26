@@ -76,17 +76,19 @@ impl fmt::Debug for CpuInputInstance {
 
 impl CpuInputInstance {
     pub fn new() -> CpuInputInstance {
-        let system = key("system");
+        let system = key("system").meaning(&["what"]);
 
         CpuInputInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
                 previous: None,
-                used: (Arc::new(system.tags(&[("what", "cpu-used"), ("unit", "%")])
-                           .meaning(&["what"])),
+                used: (Arc::new(system.clone()
+                           .tags(&[("what", "cpu-used"), ("unit", "%")])
+                           .build()),
                        Gauge::new()),
-                free: (Arc::new(system.tags(&[("what", "cpu-free"), ("unit", "%")])
-                           .meaning(&["what"])),
+                free: (Arc::new(system.clone()
+                           .tags(&[("what", "cpu-free"), ("unit", "%")])
+                           .build()),
                        Gauge::new()),
             })),
         }

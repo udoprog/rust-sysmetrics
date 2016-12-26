@@ -26,6 +26,7 @@ extern crate num_cpus;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate serde_json;
 
 pub mod parsers;
 pub mod plugins;
@@ -37,3 +38,4 @@ pub mod errors;
 pub mod poller;
 pub mod updater;
 pub mod config;
+pub mod serde;

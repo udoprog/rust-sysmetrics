@@ -1,87 +1,80 @@
-use std::collections::HashMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone)]
+pub struct MetricIdBuilder {
+    key: Option<String>,
+    tags: HashMap<String, String>,
+    identity: BTreeSet<String>,
+    meaning: BTreeSet<String>,
+}
+
+impl MetricIdBuilder {
+    pub fn key(mut self, key: &str) -> MetricIdBuilder {
+        self.key = Some(key.to_owned());
+        self
+    }
+
+    pub fn tags(mut self, entries: &[(&str, &str)]) -> MetricIdBuilder {
+        for &(key, value) in entries {
+            self.tags.insert(key.to_owned(), value.to_owned());
+        }
+
+        self
+    }
+
+    pub fn identity(mut self, entries: &[&str]) -> MetricIdBuilder {
+        for &value in entries {
+            self.identity.insert(value.to_owned());
+        }
+
+        self
+    }
+
+    pub fn meaning(mut self, entries: &[&str]) -> MetricIdBuilder {
+        for &value in entries {
+            self.meaning.insert(value.to_owned());
+        }
+
+        self
+    }
+
+    pub fn build(&self) -> MetricId {
+        MetricId {
+            key: self.key.clone(),
+            tags: self.tags.clone(),
+            identity: self.identity.clone(),
+            meaning: self.meaning.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct MetricId {
     key: Option<String>,
-    tags: Arc<HashMap<String, String>>,
-    identity: Arc<BTreeSet<String>>,
-    meaning: Arc<BTreeSet<String>>,
+    tags: HashMap<String, String>,
+    identity: BTreeSet<String>,
+    meaning: BTreeSet<String>,
 }
 
 impl MetricId {
-    pub fn new() -> MetricId {
-        MetricId {
+    pub fn new() -> MetricIdBuilder {
+        MetricIdBuilder {
             key: None,
-            tags: Arc::new(HashMap::new()),
-            identity: Arc::new(BTreeSet::new()),
-            meaning: Arc::new(BTreeSet::new()),
+            tags: HashMap::new(),
+            identity: BTreeSet::new(),
+            meaning: BTreeSet::new(),
         }
     }
 
-    pub fn new_with_key(key: &str) -> MetricId {
-        MetricId {
+    pub fn new_with_key(key: &str) -> MetricIdBuilder {
+        MetricIdBuilder {
             key: Some(key.to_owned()),
-            tags: Arc::new(HashMap::new()),
-            identity: Arc::new(BTreeSet::new()),
-            meaning: Arc::new(BTreeSet::new()),
-        }
-    }
-
-    pub fn key(&self, key: &str) -> MetricId {
-        MetricId {
-            key: Some(key.to_owned()),
-            tags: self.tags.clone(),
-            identity: self.identity.clone(),
-            meaning: self.meaning.clone(),
-        }
-    }
-
-    pub fn tags(&self, entries: &[(&str, &str)]) -> MetricId {
-        let mut new_tags = (*self.tags).clone();
-
-        for &(key, value) in entries {
-            new_tags.insert(key.to_owned(), value.to_owned());
-        }
-
-        MetricId {
-            key: self.key.clone(),
-            tags: Arc::new(new_tags),
-            identity: self.identity.clone(),
-            meaning: self.meaning.clone(),
-        }
-    }
-
-    pub fn identity(&self, entries: &[&str]) -> MetricId {
-        let mut identity = (*self.identity).clone();
-
-        for &value in entries {
-            identity.insert(value.to_owned());
-        }
-
-        MetricId {
-            key: self.key.clone(),
-            tags: self.tags.clone(),
-            identity: Arc::new(identity),
-            meaning: self.meaning.clone(),
-        }
-    }
-
-    pub fn meaning(&self, entries: &[&str]) -> MetricId {
-        let mut meaning = (*self.meaning).clone();
-
-        for &value in entries {
-            meaning.insert(value.to_owned());
-        }
-
-        MetricId {
-            key: self.key.clone(),
-            tags: self.tags.clone(),
-            identity: self.identity.clone(),
-            meaning: Arc::new(meaning),
+            tags: HashMap::new(),
+            identity: BTreeSet::new(),
+            meaning: BTreeSet::new(),
         }
     }
 }
@@ -96,7 +89,7 @@ impl Hash for MetricId {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.key.hash(state);
 
-        for (k, v) in &*self.tags {
+        for (k, v) in &self.tags {
             k.hash(state);
             v.hash(state);
         }
@@ -112,10 +105,11 @@ mod tests {
     #[test]
     fn test_metric_id() {
         let m = MetricId::new();
-        let m2 = m.tags(&[("host", "foobar")]);
-        let m3 = m.tags(&[("host", "foobar")]);
+        let m0 = m.build();
+        let m2 = m.clone().tags(&[("host", "foobar")]).build();
+        let m3 = m.clone().tags(&[("host", "foobar")]).build();
 
-        assert!(m != m2, "m = {}, m2 = {}", m, m2);
+        assert!(m0 != m2, "m = {}, m2 = {}", m0, m2);
         assert!(m3 == m2, "m3 = {}, m2 = {}", m3, m2);
 
         let mut d: HashMap<MetricId, String> = HashMap::new();

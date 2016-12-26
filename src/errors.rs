@@ -1,12 +1,13 @@
 use tokio_timer::TimerError;
 
-use std::io;
-use std::sync;
+use getopts;
 use log;
 use nom;
-use toml;
-use getopts;
 use std::cell;
+use std::io;
+use std::sync;
+use toml;
+use serde_json;
 
 error_chain! {
     foreign_links {
@@ -15,6 +16,7 @@ error_chain! {
         SetLogger(log::SetLoggerError);
         Getopts(getopts::Fail);
         BorrowMut(cell::BorrowMutError);
+        JsonError(serde_json::Error);
     }
 
     errors {

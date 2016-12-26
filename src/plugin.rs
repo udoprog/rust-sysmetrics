@@ -48,7 +48,7 @@ impl PluginRegistry {
 }
 
 /// A single data sample.
-#[derive(Debug)]
+#[derive(Serialize, Debug)]
 pub struct Sample {
     pub metric_id: Arc<MetricId>,
     pub value: f64,
@@ -89,8 +89,8 @@ pub trait InputInstance: fmt::Debug + Send + Sync {
     }
 }
 
-pub trait OutputInstance: fmt::Debug + Send + Sync {
-    fn feed(&self, sample: &Sample);
+pub trait OutputInstance: Send + Sync {
+    fn feed(&self, sample: &Sample) -> Result<()>;
 }
 
 /// Context used for when setting up a plugin.

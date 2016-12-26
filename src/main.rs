@@ -28,7 +28,6 @@ use std::cell::RefCell;
 use std::env;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio_core::reactor::*;
 
 fn print_usage(program: &str, plugins: &PluginRegistry, opts: getopts::Options) {

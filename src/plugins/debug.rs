@@ -23,9 +23,11 @@ impl DebugOutputInstance {
 }
 
 impl OutputInstance for DebugOutputInstance {
-    fn feed(&self, sample: &Sample) {
+    fn feed(&self, sample: &Sample) -> Result<()> {
         info!("  debug: {:?} {:?}", self.id, sample.metric_id);
         info!("      => {}", sample.value);
+
+        Ok(())
     }
 }
 

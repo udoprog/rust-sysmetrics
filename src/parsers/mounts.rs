@@ -1,7 +1,5 @@
 use std::str::{self, FromStr};
-use nom::{line_ending, space, digit, alphanumeric, rest};
-
-use ::parsers::common::*;
+use nom::digit;
 
 named!(pub type_u64<u64>,
        map_res!(map_res!(digit, str::from_utf8), FromStr::from_str));
