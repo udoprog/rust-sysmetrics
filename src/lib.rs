@@ -38,4 +38,3 @@ pub mod errors;
 pub mod poller;
 pub mod updater;
 pub mod config;
-pub mod serde;
