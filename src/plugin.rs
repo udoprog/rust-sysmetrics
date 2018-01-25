@@ -1,4 +1,4 @@
-use ::errors::*;
+use errors::*;
 use futures::*;
 use futures_cpupool::CpuPool;
 use metric::MetricId;
@@ -21,9 +21,10 @@ pub struct PluginRegistry {
 }
 
 impl PluginRegistry {
-    pub fn new(input: HashMap<String, InputEntry>,
-               output: HashMap<String, OutputEntry>)
-               -> PluginRegistry {
+    pub fn new(
+        input: HashMap<String, InputEntry>,
+        output: HashMap<String, OutputEntry>,
+    ) -> PluginRegistry {
         PluginRegistry {
             input: input,
             output: output,
@@ -79,8 +80,8 @@ pub trait InputInstance: fmt::Debug + Send + Sync {
     ///
     /// Blocked futures will prevent additional updates from being scheduled until the previous one
     /// has been resolved.
-    fn update(&self) -> BoxFuture<(), Error> {
-        future::ok(()).boxed()
+    fn update(&self) -> Box<Future<Item = (), Error = Error> + Send> {
+        Box::new(future::ok(()))
     }
 
     /// Get the duration until the next update should be called.
@@ -103,7 +104,8 @@ pub struct PluginContext<'a> {
 
 impl<'a> PluginContext<'a> {
     pub fn decode_config<T>(&self) -> Result<T>
-        where T: serde::Deserialize
+    where
+        T: serde::Deserialize,
     {
         let mut decoder = toml::Decoder::new(toml::Value::Table(self.config.clone()));
         serde::Deserialize::deserialize(&mut decoder).map_err(Into::into)

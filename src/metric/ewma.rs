@@ -246,7 +246,9 @@ mod test {
         assert_eq!(within(&mut e, 0.23594443252115815f64), true);
 
         // 15 minute
-        assert_eq!(within(&mut e, 0.2207276647028646247028654470286553f64),
-                   true);
+        assert_eq!(
+            within(&mut e, 0.2207276647028646247028654470286553f64),
+            true
+        );
     }
 }

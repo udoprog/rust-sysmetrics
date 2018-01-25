@@ -1,6 +1,6 @@
 use nom::{line_ending, space};
 
-use ::parsers::common::*;
+use parsers::common::*;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StatCpu {
@@ -29,12 +29,12 @@ pub struct StatCpu {
 impl StatCpu {
     pub fn total(&self) -> u64 {
         return self.user + self.nice + self.system + self.idle + self.iowait + self.irq +
-               self.softirq + self.steal + self.guest + self.guest_nice;
+            self.softirq + self.steal + self.guest + self.guest_nice;
     }
 
     pub fn used(&self) -> u64 {
         return self.user + self.nice + self.system + self.iowait + self.irq + self.softirq +
-               self.steal + self.guest + self.guest_nice;
+            self.steal + self.guest + self.guest_nice;
     }
 
     pub fn free(&self) -> u64 {

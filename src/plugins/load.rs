@@ -1,9 +1,8 @@
-use ::errors::*;
-use ::plugin::*;
+use errors::*;
+use plugin::*;
 
 #[derive(Debug)]
-struct LoadInput {
-}
+struct LoadInput {}
 
 impl Input for LoadInput {
     fn setup(&self, _ctx: PluginContext) -> Result<Box<InputInstance>> {
@@ -12,8 +11,7 @@ impl Input for LoadInput {
 }
 
 #[derive(Debug)]
-struct LoadInputInstance {
-}
+struct LoadInputInstance {}
 
 impl LoadInputInstance {
     pub fn new() -> LoadInputInstance {

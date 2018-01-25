@@ -1,5 +1,5 @@
-use ::errors::*;
-use ::plugin::*;
+use errors::*;
+use plugin::*;
 
 #[derive(Deserialize, Debug)]
 struct HttpInputConfig {
@@ -7,8 +7,7 @@ struct HttpInputConfig {
 }
 
 #[derive(Debug)]
-struct HttpInput {
-}
+struct HttpInput {}
 
 impl Input for HttpInput {
     fn setup(&self, ctx: PluginContext) -> Result<Box<InputInstance>> {
@@ -18,8 +17,7 @@ impl Input for HttpInput {
 }
 
 #[derive(Debug)]
-struct HttpInputInstance {
-}
+struct HttpInputInstance {}
 
 impl HttpInputInstance {
     pub fn new() -> HttpInputInstance {

@@ -25,7 +25,11 @@ pub struct Meter {
 
 impl Meter {
     pub fn new() -> Meter {
-        let ewma = vec![ewma::EWMA::new(1f64), ewma::EWMA::new(5f64), ewma::EWMA::new(15f64)];
+        let ewma = vec![
+            ewma::EWMA::new(1f64),
+            ewma::EWMA::new(5f64),
+            ewma::EWMA::new(15f64),
+        ];
         Meter {
             count: 0i64,
             rates: [0f64, 0f64, 0f64],

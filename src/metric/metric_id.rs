@@ -1,14 +1,10 @@
-use std::collections::BTreeSet;
-use std::collections::HashMap;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 
-#[derive(Clone)]
+#[derive(Serialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MetricIdBuilder {
     key: Option<String>,
-    tags: HashMap<String, String>,
-    identity: BTreeSet<String>,
-    meaning: BTreeSet<String>,
+    tags: Vec<(String, String)>,
+    resource: Vec<(String, String)>,
 }
 
 impl MetricIdBuilder {
@@ -17,27 +13,13 @@ impl MetricIdBuilder {
         self
     }
 
-    pub fn tags(mut self, entries: &[(&str, &str)]) -> MetricIdBuilder {
-        for &(key, value) in entries {
-            self.tags.insert(key.to_owned(), value.to_owned());
-        }
-
+    pub fn tag(mut self, key: &str, value: &str) -> MetricIdBuilder {
+        self.tags.push((key.to_owned(), value.to_owned()));
         self
     }
 
-    pub fn identity(mut self, entries: &[&str]) -> MetricIdBuilder {
-        for &value in entries {
-            self.identity.insert(value.to_owned());
-        }
-
-        self
-    }
-
-    pub fn meaning(mut self, entries: &[&str]) -> MetricIdBuilder {
-        for &value in entries {
-            self.meaning.insert(value.to_owned());
-        }
-
+    pub fn resource(mut self, key: &str, value: &str) -> MetricIdBuilder {
+        self.resource.push((key.to_owned(), value.to_owned()));
         self
     }
 
@@ -45,54 +27,39 @@ impl MetricIdBuilder {
         MetricId {
             key: self.key.clone(),
             tags: self.tags.clone(),
-            identity: self.identity.clone(),
-            meaning: self.meaning.clone(),
+            resource: self.resource.clone(),
         }
     }
 }
 
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MetricId {
     key: Option<String>,
-    tags: HashMap<String, String>,
-    identity: BTreeSet<String>,
-    meaning: BTreeSet<String>,
+    tags: Vec<(String, String)>,
+    resource: Vec<(String, String)>,
 }
 
 impl MetricId {
     pub fn new() -> MetricIdBuilder {
         MetricIdBuilder {
             key: None,
-            tags: HashMap::new(),
-            identity: BTreeSet::new(),
-            meaning: BTreeSet::new(),
+            tags: Vec::new(),
+            resource: Vec::new(),
         }
     }
 
     pub fn new_with_key(key: &str) -> MetricIdBuilder {
         MetricIdBuilder {
             key: Some(key.to_owned()),
-            tags: HashMap::new(),
-            identity: BTreeSet::new(),
-            meaning: BTreeSet::new(),
+            tags: Vec::new(),
+            resource: Vec::new(),
         }
     }
 }
 
 impl fmt::Display for MetricId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MetricId({:?})", self.tags)
-    }
-}
-
-impl Hash for MetricId {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-
-        for (k, v) in &self.tags {
-            k.hash(state);
-            v.hash(state);
-        }
+        write!(f, "{:?} {:?} {:?}", self.key, self.tags, self.resource)
     }
 }
 

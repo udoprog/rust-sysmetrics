@@ -12,10 +12,10 @@ extern crate log;
 #[cfg(features = "watch")]
 extern crate notify;
 extern crate serde;
+extern crate env_logger;
 
 use sysmon::config::*;
 use sysmon::errors::*;
-use sysmon::logger;
 use sysmon::plugin::*;
 use sysmon::poller::Poller;
 use sysmon::scheduler::*;
@@ -62,9 +62,8 @@ fn setup_plugins(
     setups: Vec<Box<PluginSetup>>,
     config: &Config,
     plugins: &PluginRegistry,
-    partial_context: &PartialPluginContext
-) -> Result<(Arc<Vec<Arc<Box<InputInstance>>>>, Arc<Vec<Box<OutputInstance>>>)>
-{
+    partial_context: &PartialPluginContext,
+) -> Result<(Arc<Vec<Arc<Box<InputInstance>>>>, Arc<Vec<Box<OutputInstance>>>)> {
     let mut inputs: Vec<Arc<Box<InputInstance>>> = Vec::new();
     let mut outputs: Vec<Box<OutputInstance>> = Vec::new();
 
@@ -86,9 +85,11 @@ fn setup_opts() -> getopts::Options {
     opts.optmulti("", "config", "load configuration file", "<file>");
 
     #[cfg(feature = "watch")]
-    opts.optflag("w",
-                 "watch",
-                 "enable watching of the configuration directory");
+    opts.optflag(
+        "w",
+        "watch",
+        "enable watching of the configuration directory",
+    );
 
     opts
 }
@@ -97,13 +98,12 @@ fn setup_opts() -> getopts::Options {
 ///
 /// If debug (--debug) is specified, logging should be configured with LogLevelFilter::Debug.
 fn setup_logger(matches: &getopts::Matches) -> Result<()> {
-    let level: log::LogLevelFilter = match matches.opt_present("debug") {
-        true => log::LogLevelFilter::Debug,
-        false => log::LogLevelFilter::Info,
+    let level: log::LevelFilter = match matches.opt_present("debug") {
+        true => log::LevelFilter::Debug,
+        false => log::LevelFilter::Info,
     };
 
-    logger::init(level)?;
-
+    env_logger::init();
     Ok(())
 }
 
@@ -148,33 +148,37 @@ fn run() -> Result<()> {
 
     let handle = core.handle();
 
-    let update_interval = Interval::new(config.update_interval, &handle)?.map_err(Into::into);
-    let poll_interval = Interval::new(config.poll_interval, &handle)?.map_err(Into::into);
+    let update_interval = Interval::new(config.update_interval, &handle)?.map_err(
+        Into::into,
+    );
+    let poll_interval = Interval::new(config.poll_interval, &handle)?.map_err(
+        Into::into,
+    );
 
     let update = update_interval.and_then(move |_| updater.run());
     let poll = poll_interval.and_then(move |_| poller.run());
 
     let ctrl_c = core.run(::tokio_signal::ctrl_c(&handle))?;
 
-    let shutdown: BoxFuture<(), Error> = ctrl_c.map_err(Into::into).for_each(|_| {
-        info!("Interrupted");
-        Err(ErrorKind::Shutdown.into())
-    }).boxed();
+    let shutdown: Box<Future<Item = (), Error = Error>> =
+        Box::new(ctrl_c.map_err(Into::into).for_each(|_| {
+            info!("Interrupted");
+            Err(ErrorKind::Shutdown.into())
+        }));
 
-    let mut futures: Vec<BoxFuture<(), Error>> = Vec::new();
-    futures.push(update.for_each(|_| Ok(())).boxed());
-    futures.push(poll.for_each(|_| Ok(())).boxed());
+    let mut futures: Vec<Box<Future<Item = (), Error = Error>>> = Vec::new();
+    futures.push(Box::new(update.for_each(|_| Ok(()))));
+    futures.push(Box::new(poll.for_each(|_| Ok(()))));
 
-    let tasks: BoxFuture<(), Error> = future::join_all(futures).map(|_| ()).boxed();
+    let tasks: Box<Future<Item = (), Error = Error>> =
+        Box::new(future::join_all(futures).map(|_| ()));
     let combo = future::select_all(vec![tasks, shutdown]);
 
     info!("Started!");
 
     match core.run(combo) {
-        Err((Error(ErrorKind::Shutdown, ..), ..)) => {
-        }
-        Ok(..) => {
-        }
+        Err((Error(ErrorKind::Shutdown, ..), ..)) => {}
+        Ok(..) => {}
         Err(e) => {
             let (error, _size, _futures) = e;
             return Err(error);

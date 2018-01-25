@@ -1,6 +1,6 @@
-use ::errors::*;
-use ::plugin::*;
-use ::scheduler::Runnable;
+use errors::*;
+use plugin::*;
+use scheduler::Runnable;
 use futures::*;
 use std::sync::Arc;
 
@@ -10,9 +10,10 @@ pub struct Poller {
 }
 
 impl Poller {
-    pub fn new(input: Arc<Vec<Arc<Box<InputInstance>>>>,
-               output: Arc<Vec<Box<OutputInstance>>>)
-               -> Poller {
+    pub fn new(
+        input: Arc<Vec<Arc<Box<InputInstance>>>>,
+        output: Arc<Vec<Box<OutputInstance>>>,
+    ) -> Poller {
         Poller {
             input: input,
             output: output,
@@ -21,21 +22,24 @@ impl Poller {
 }
 
 impl Runnable for Poller {
-    fn run(&self) -> BoxFuture<(), Error> {
+    fn run(&self) -> Box<Future<Item = (), Error = Error>> {
         for instance in self.input.iter() {
             let samples = match instance.poll() {
-                Err(err) => return future::err(err).boxed(),
+                Err(err) => return Box::new(future::err(err)),
                 Ok(s) => s,
             };
 
             for sample in samples {
                 for instance in self.output.iter() {
-                    instance.feed(&sample);
+                    match instance.feed(&sample) {
+                        Err(err) => return Box::new(future::err(err)),
+                        Ok(()) => (),
+                    };
                 }
             }
         }
 
-        future::ok(()).boxed()
+        Box::new(future::ok(()))
     }
 }
 

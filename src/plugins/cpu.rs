@@ -1,7 +1,7 @@
-use ::metric::*;
-use ::plugin::*;
-use ::errors::*;
-use ::parsers::stat::*;
+use metric::*;
+use plugin::*;
+use errors::*;
+use parsers::stat::*;
 
 use futures::*;
 use std::fmt;
@@ -12,8 +12,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 #[derive(Debug)]
-struct Cpu {
-}
+struct Cpu {}
 
 impl Cpu {
     pub fn new() -> Cpu {
@@ -76,20 +75,32 @@ impl fmt::Debug for CpuInputInstance {
 
 impl CpuInputInstance {
     pub fn new() -> CpuInputInstance {
-        let system = key("system").meaning(&["what"]);
+        let system = key("system");
 
         CpuInputInstance {
             next_update: Duration::from_millis(1000),
             metrics: Arc::new(Mutex::new(Metrics {
                 previous: None,
-                used: (Arc::new(system.clone()
-                           .tags(&[("what", "cpu-used"), ("unit", "%")])
-                           .build()),
-                       Gauge::new()),
-                free: (Arc::new(system.clone()
-                           .tags(&[("what", "cpu-free"), ("unit", "%")])
-                           .build()),
-                       Gauge::new()),
+                used: (
+                    Arc::new(
+                        system
+                            .clone()
+                            .tag("what", "cpu-used")
+                            .tag("unit", "%")
+                            .build(),
+                    ),
+                    Gauge::new(),
+                ),
+                free: (
+                    Arc::new(
+                        system
+                            .clone()
+                            .tag("what", "cpu-free")
+                            .tag("unit", "%")
+                            .build(),
+                    ),
+                    Gauge::new(),
+                ),
             })),
         }
     }
@@ -99,19 +110,21 @@ impl InputInstance for CpuInputInstance {
     fn poll(&self) -> Result<Samples> {
         let ref mut m = self.metrics.lock()?;
 
-        let results = vec![Sample::new(m.free.0.clone(), m.free.1.snapshot()),
-                           Sample::new(m.used.0.clone(), m.used.1.snapshot())];
+        let results = vec![
+            Sample::new(m.free.0.clone(), m.free.1.snapshot()),
+            Sample::new(m.used.0.clone(), m.used.1.snapshot()),
+        ];
 
         Ok(results)
     }
 
-    fn update(&self) -> BoxFuture<(), Error> {
+    fn update(&self) -> Box<Future<Item = (), Error = Error> + Send> {
         let m = self.metrics.clone();
 
         Box::new(future::lazy(move || {
-            let result: Result<()> = m.lock()
-                .map_err(Into::into)
-                .and_then(|mut locked| locked.update());
+            let result: Result<()> = m.lock().map_err(Into::into).and_then(
+                |mut locked| locked.update(),
+            );
 
             future::result(result)
         }))

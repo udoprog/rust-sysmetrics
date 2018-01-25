@@ -1,6 +1,6 @@
 use serde;
-use ::plugin::*;
-use ::errors::*;
+use plugin::*;
+use errors::*;
 use std::sync::Arc;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,9 +39,10 @@ pub struct PartialPluginContext {
 }
 
 impl PartialPluginContext {
-    pub fn new(cpupool: Arc<CpuPool>,
-               core: Rc<RefCell<tokio_core::reactor::Core>>)
-               -> PartialPluginContext {
+    pub fn new(
+        cpupool: Arc<CpuPool>,
+        core: Rc<RefCell<tokio_core::reactor::Core>>,
+    ) -> PartialPluginContext {
         PartialPluginContext {
             cpupool: cpupool,
             core: core,
@@ -81,45 +82,51 @@ impl Config {
     }
 }
 
-fn load_instance<Entry, Instance, Load, Plugin, Setup>(id: &String,
-                                                       plugin_section: toml::Value,
-                                                       load: Load,
-                                                       setup: Setup)
-                                                       -> Result<Instance>
-    where Entry: Fn() -> Result<Plugin>,
-          Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>
+fn load_instance<Entry, Instance, Load, Plugin, Setup>(
+    id: &String,
+    plugin_section: toml::Value,
+    load: Load,
+    setup: Setup,
+) -> Result<Instance>
+where
+    Entry: Fn() -> Result<Plugin>,
+    Load: Fn(&String) -> Option<Entry>,
+    Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>,
 {
     let plugin_table: toml::Table = toml::decode(plugin_section).ok_or(ErrorKind::TomlDecode)?;
 
-    let plugin_type: String = plugin_table.get("type")
+    let plugin_type: String = plugin_table
+        .get("type")
         .map(Clone::clone)
         .and_then(toml::decode)
         .ok_or(ErrorKind::MissingField("type".to_owned()))?;
 
-    let entry = load(&plugin_type).ok_or(ErrorKind::MissingPlugin(plugin_type))?;
+    let entry = load(&plugin_type).ok_or(
+        ErrorKind::MissingPlugin(plugin_type),
+    )?;
 
     let plugin = entry()?;
 
     setup(plugin, id, &plugin_table)
 }
 
-fn load_section<Entry, Instance, Load, Plugin, Setup>(section: &toml::Value,
-                                                      load: Load,
-                                                      setup: Setup)
-                                                      -> Result<Vec<Instance>>
-    where Entry: Fn() -> Result<Plugin>,
-          Load: Fn(&String) -> Option<Entry>,
-          Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>
+fn load_section<Entry, Instance, Load, Plugin, Setup>(
+    section: &toml::Value,
+    load: Load,
+    setup: Setup,
+) -> Result<Vec<Instance>>
+where
+    Entry: Fn() -> Result<Plugin>,
+    Load: Fn(&String) -> Option<Entry>,
+    Setup: Fn(Plugin, &String, &toml::Table) -> Result<Instance>,
 {
     let mut values: Vec<Instance> = Vec::new();
 
     let table: toml::Table = toml::decode(section.clone()).ok_or(ErrorKind::TomlDecode)?;
 
     for (id, plugin_section) in table {
-        values.push(load_instance(&id, plugin_section.clone(), &load, &setup).chain_err(|| {
-            ErrorKind::ConfigSection(id)
-        })?);
+        values.push(load_instance(&id, plugin_section.clone(), &load, &setup)
+            .chain_err(|| ErrorKind::ConfigSection(id))?);
     }
 
     Ok(values)
@@ -156,17 +163,22 @@ pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup
 
     if let Some(threads) = config_in.threads {
         if threads <= 0 {
-            return Err(ErrorKind::ConfigField("threads".to_owned(),
-                                              "must be a positive number".to_owned())
-                .into());
+            return Err(
+                ErrorKind::ConfigField(
+                    "threads".to_owned(),
+                    "must be a positive number".to_owned(),
+                ).into(),
+            );
         }
 
         config.threads = threads;
     }
 
-    read_config!(config,
-                 config_in,
-                 [threads_per_cpu, update_interval, poll_interval]);
+    read_config!(
+        config,
+        config_in,
+        [threads_per_cpu, update_interval, poll_interval]
+    );
 
     let mut input_configs = Vec::new();
     let mut output_configs = Vec::new();
@@ -184,22 +196,23 @@ pub fn load_config(config: &mut Config, path: &String) -> Result<Box<PluginSetup
         let mut outputs: Vec<Box<OutputInstance>> = Vec::new();
 
         for i in input_configs.iter() {
-            let loaded = load_section(&i,
-                                      |plugin_type| plugins.get_input(plugin_type),
-                                      |plugin, id, config| {
-                                          plugin.setup(partial_context.build(id, config))
-                                              .map(Arc::new)
-                                      }).chain_err(|| ErrorKind::ConfigSection("in".to_owned()))?;
+            let loaded = load_section(&i, |plugin_type| plugins.get_input(plugin_type), |plugin,
+             id,
+             config| {
+                plugin.setup(partial_context.build(id, config)).map(
+                    Arc::new,
+                )
+            }).chain_err(|| ErrorKind::ConfigSection("in".to_owned()))?;
 
             inputs.extend(loaded);
         }
 
         for o in output_configs.iter() {
-            let loaded = load_section(&o,
-                                      |plugin_type| plugins.get_output(plugin_type),
-                                      |plugin, id, config| {
-                                          plugin.setup(partial_context.build(id, config))
-                                      }).chain_err(|| ErrorKind::ConfigSection("out".to_owned()))?;
+            let loaded = load_section(&o, |plugin_type| plugins.get_output(plugin_type), |plugin,
+             id,
+             config| {
+                plugin.setup(partial_context.build(id, config))
+            }).chain_err(|| ErrorKind::ConfigSection("out".to_owned()))?;
 
             outputs.extend(loaded);
         }

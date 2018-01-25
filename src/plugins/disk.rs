@@ -1,9 +1,8 @@
-use ::errors::*;
-use ::plugin::*;
+use errors::*;
+use plugin::*;
 
 #[derive(Debug)]
-struct DiskInput {
-}
+struct DiskInput {}
 
 impl DiskInput {
     pub fn new() -> DiskInput {
@@ -18,8 +17,7 @@ impl Input for DiskInput {
 }
 
 #[derive(Debug)]
-struct DiskInputInstance {
-}
+struct DiskInputInstance {}
 
 impl DiskInputInstance {
     pub fn new() -> DiskInputInstance {

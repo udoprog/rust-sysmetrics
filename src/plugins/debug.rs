@@ -1,9 +1,8 @@
-use ::errors::*;
-use ::plugin::*;
+use errors::*;
+use plugin::*;
 
 #[derive(Debug)]
-struct DebugOutput {
-}
+struct DebugOutput {}
 
 impl Output for DebugOutput {
     fn setup(&self, ctx: PluginContext) -> Result<Box<OutputInstance>> {
